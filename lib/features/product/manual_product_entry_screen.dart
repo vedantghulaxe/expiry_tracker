@@ -528,24 +528,29 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
                       '';
 
       print('=== AI VISION DATA (EXTRACTED) ===');
-      print('Name: "$name"');
-      print('Brand: "$brand"');
-      print('Expiry: "$expiry"');
-      print('Mfg: "$mfg"');
-      print('Category: "$category"');
-      print('Batch: "$batch"');
-      print('Ingredients: "$ingredients"');
+      print('Name: "$name" (Source: ${name.isEmpty ? "Empty" : "AI Vision"})');
+      print('Brand: "$brand" (Source: ${brand.isEmpty ? "Empty" : "AI Vision"})');
+      print('Expiry: "$expiry" (Source: ${expiry.isEmpty ? "Empty" : "AI Vision"})');
+      print('Mfg: "$mfg" (Source: ${mfg.isEmpty ? "Empty" : "AI Vision"})');
+      print('Category: "$category" (Source: ${category.isEmpty ? "Empty" : "AI Vision"})');
+      print('Batch: "$batch" (Source: ${batch.isEmpty ? "Empty" : "AI Vision"})');
+      print('Ingredients: "$ingredients" (Source: ${ingredients.isEmpty ? "Empty" : "AI Vision"})');
 
       // Fallback to local extraction only if AI vision data is empty
+      bool usedLocalExtraction = false;
       if (name.isEmpty) {
         String rawText = widget.analysisData!['text']?.toString() ?? '';
-        print('AI vision name empty, using local extraction');
+        print('⚠️ AI vision name empty, using LOCAL REGEX EXTRACTION');
+        usedLocalExtraction = true;
         Map<String, dynamic> localExtracted = _aiExtractInformation(rawText, parsedData);
         name = localExtracted['name']?.toString() ?? '';
         if (brand.isEmpty) brand = localExtracted['brand']?.toString() ?? '';
         if (expiry.isEmpty) expiry = localExtracted['expiryDate']?.toString() ?? '';
         if (mfg.isEmpty) mfg = localExtracted['mfgDate']?.toString() ?? '';
       }
+
+      print('=== DATA SOURCE SUMMARY ===');
+      print('Primary Data Source: ${usedLocalExtraction ? "LOCAL REGEX (AI Vision Failed)" : "AI VISION (Oxlo.ai)"}');
 
       // AGGRESSIVE: Always populate name if we have any text
       if (name.isEmpty && widget.analysisData!['text'] != null) {
