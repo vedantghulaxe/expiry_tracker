@@ -1,6 +1,7 @@
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 import 'package:expiry_tracker_app/core/services/product_api_service.dart';
 import 'package:expiry_tracker_app/core/services/ai_service.dart';
 import 'package:expiry_tracker_app/core/services/config_service.dart';

@@ -43,6 +43,7 @@ class ProductEntryMethodScreen extends StatelessWidget {
       // Check if we got meaningful data (not just the basic fallback)
       final isBasicFallback = (productData['name']?.toString() ?? '').startsWith('Product (');
       final hasExpiry = (productData['expiryDate']?.toString() ?? '').isNotEmpty;
+      final source = productData['source']?.toString() ?? '';
 
       // Build analysisData in the format ProductFormScreenNew expects
       final parsedData = <String, dynamic>{
@@ -69,17 +70,19 @@ class ProductEntryMethodScreen extends StatelessWidget {
         'barcode': barcode,
       };
 
-      // If barcode not found in any API, suggest image capture for better results
-      if (isBasicFallback || !hasExpiry) {
+      // Indian medicines are rarely in public databases - always suggest image capture
+      if (isBasicFallback || !hasExpiry || source.contains('AI Lookup')) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               isBasicFallback
-                  ? 'Barcode not found in databases. Try Image Capture for better results.'
-                  : 'Expiry date not found. Use Image Capture to scan the label.',
+                  ? 'Barcode not found in databases. For Indian medicines, use Image Capture to scan the label.'
+                  : source.contains('AI Lookup')
+                      ? 'AI lookup incomplete. Use Image Capture for accurate expiry date.'
+                      : 'Expiry date not found. Use Image Capture to scan the label.',
             ),
             backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Capture Image',
               textColor: Colors.white,
@@ -87,7 +90,7 @@ class ProductEntryMethodScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const ImageCaptureScreenRealOCR(isMedicine: false),
+                    builder: (_) => ImageCaptureScreenRealOCR(isMedicine: productData['isMedicine'] == true),
                   ),
                 );
               },
@@ -112,6 +115,18 @@ class ProductEntryMethodScreen extends StatelessWidget {
         SnackBar(
           content: Text('Failed to look up barcode: $e'),
           backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Capture Image',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ImageCaptureScreenRealOCR(isMedicine: false),
+                ),
+              );
+            },
+          ),
         ),
       );
     }
