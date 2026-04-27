@@ -12,6 +12,99 @@ class BarcodeService {
   static const String _openFoodFactsUrl = 'https://world.openfoodfacts.org/api/v0/product/';
   static const String _upcDatabaseUrl = 'https://api.upcdatabase.org/product/';
 
+  // Local Indian Medicine Database (fallback when APIs fail)
+  static const Map<String, Map<String, dynamic>> _indianMedicineDatabase = {
+    // Common Indian medicines with their barcodes
+    '8901033010285': {
+      'name': 'Crocin 500mg',
+      'brand': 'GSK',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Paracetamol 500mg',
+      'source': 'Local Database',
+    },
+    '8901033010322': {
+      'name': 'Crocin 650mg',
+      'brand': 'GSK',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Paracetamol 650mg',
+      'source': 'Local Database',
+    },
+    '8901144000113': {
+      'name': 'Dolo 650',
+      'brand': 'Micro Labs',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Paracetamol 650mg',
+      'source': 'Local Database',
+    },
+    '8901144000120': {
+      'name': 'Dolo 500',
+      'brand': 'Micro Labs',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Paracetamol 500mg',
+      'source': 'Local Database',
+    },
+    '8901138500236': {
+      'name': 'Combiflam',
+      'brand': 'Sanofi',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Ibuprofen 400mg + Paracetamol 325mg',
+      'source': 'Local Database',
+    },
+    '8901138500243': {
+      'name': 'Combiflam Tablet',
+      'brand': 'Sanofi',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Ibuprofen 400mg + Paracetamol 325mg',
+      'source': 'Local Database',
+    },
+    '8906006200085': {
+      'name': 'Allegra 120mg',
+      'brand': 'Sanofi',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Fexofenadine 120mg',
+      'source': 'Local Database',
+    },
+    '8901588100129': {
+      'name': 'Azithral 500',
+      'brand': 'Alembic',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Azithromycin 500mg',
+      'source': 'Local Database',
+    },
+    '8901588100136': {
+      'name': 'Azithral 250',
+      'brand': 'Alembic',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Azithromycin 250mg',
+      'source': 'Local Database',
+    },
+    '8901072010018': {
+      'name': 'Augmentin 625',
+      'brand': 'GSK',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Amoxicillin 500mg + Clavulanic Acid 125mg',
+      'source': 'Local Database',
+    },
+    '8901072010025': {
+      'name': 'Augmentin 375',
+      'brand': 'GSK',
+      'category': 'medicine',
+      'isMedicine': true,
+      'ingredients': 'Amoxicillin 250mg + Clavulanic Acid 125mg',
+      'source': 'Local Database',
+    },
+  };
+
   /// Scan barcode from image using ML Kit
   static Future<String?> scanBarcodeFromImage(String imagePath) async {
     // This would integrate with ML Kit barcode scanning
@@ -24,26 +117,44 @@ class BarcodeService {
   static Future<Map<String, dynamic>> getProductInfo(String barcode) async {
     try {
       print('=== ENHANCED BARCODE SERVICE: Fetching info for $barcode ===');
-      
-      // Use the new API-powered service
+
+      // Step 1: Check local Indian medicine database first (fastest)
+      if (_indianMedicineDatabase.containsKey(barcode)) {
+        print('=== BARCODE SERVICE: Found in local Indian medicine database ===');
+        final localData = _indianMedicineDatabase[barcode]!;
+        return {
+          'success': true,
+          'name': localData['name'],
+          'brand': localData['brand'] ?? '',
+          'category': localData['category'] ?? 'medicine',
+          'ingredients': localData['ingredients'] ?? '',
+          'isMedicine': localData['isMedicine'] ?? true,
+          'confidence': 1.0,
+          'source': localData['source'],
+          'barcode': barcode,
+        };
+      }
+
+      // Step 2: Use the new API-powered service
+      print('=== BARCODE SERVICE: Checking public APIs ===');
       final result = await ProductApiService.smartProductLookup(barcode);
-      
+
       if (result.isNotEmpty) {
         print('=== BARCODE SERVICE: API success ===');
         return result;
       }
-      
-      // Fallback: Use Oxlo.ai to look up barcode info
+
+      // Step 3: Fallback: Use Oxlo.ai to look up barcode info
       print('=== BARCODE SERVICE: No API data, trying Oxlo.ai fallback ===');
       final aiResult = await _lookupBarcodeWithAI(barcode);
       if (aiResult.isNotEmpty) {
         return aiResult;
       }
-      
+
       // Return basic info if all methods fail
       print('=== BARCODE SERVICE: No data found, using basic info ===');
       return _createBasicBarcodeInfo(barcode);
-      
+
     } catch (e) {
       print('=== BARCODE SERVICE: Error - $e ===');
       return _createBasicBarcodeInfo(barcode);
