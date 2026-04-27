@@ -479,7 +479,10 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
 
       // Handle nested and mixed result shapes safely.
       final parsedData = _normalizeParsedData(widget.analysisData!);
-      print('Using normalized parsed_data: $parsedData');
+      print('=== NORMALIZED PARSED DATA ===');
+      parsedData.forEach((key, value) {
+        print('  $key: "$value"');
+      });
 
       // Auto-fill images captured during scan flow.
       final imagePaths = _extractImagePaths(widget.analysisData!);
@@ -495,21 +498,43 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
       }
 
       // PRIORITY: Use AI vision extracted data directly from Oxlo.ai
-      // This bypasses local regex extraction for accuracy
-      String name = parsedData['name']?.toString() ?? '';
-      String brand = parsedData['brand']?.toString() ?? parsedData['manufacturer']?.toString() ?? '';
-      String expiry = parsedData['expiry_date']?.toString() ?? parsedData['expiryDate']?.toString() ?? '';
-      String mfg = parsedData['mfg_date']?.toString() ?? parsedData['mfgDate']?.toString() ?? '';
-      String ingredients = parsedData['ingredients']?.toString() ?? '';
-      String category = parsedData['category']?.toString() ?? '';
-      String batch = parsedData['batch']?.toString() ?? '';
+      // Check all possible field name variations
+      String name = parsedData['name']?.toString() ??
+                    parsedData['product_name']?.toString() ??
+                    '';
+      String brand = parsedData['brand']?.toString() ??
+                      parsedData['manufacturer']?.toString() ??
+                      parsedData['company']?.toString() ??
+                      '';
+      String expiry = parsedData['expiry']?.toString() ??
+                       parsedData['expiry_date']?.toString() ??
+                       parsedData['expiryDate']?.toString() ??
+                       parsedData['expiration_date']?.toString() ??
+                       '';
+      String mfg = parsedData['mfg']?.toString() ??
+                    parsedData['mfg_date']?.toString() ??
+                    parsedData['mfgDate']?.toString() ??
+                    parsedData['manufacturing_date']?.toString() ??
+                    '';
+      String ingredients = parsedData['ingredients']?.toString() ??
+                            parsedData['composition']?.toString() ??
+                            '';
+      String category = parsedData['category']?.toString() ??
+                        parsedData['type']?.toString() ??
+                        '';
+      String batch = parsedData['batch']?.toString() ??
+                      parsedData['batch_number']?.toString() ??
+                      parsedData['batchNumber']?.toString() ??
+                      '';
 
-      print('=== AI VISION DATA ===');
+      print('=== AI VISION DATA (EXTRACTED) ===');
       print('Name: "$name"');
       print('Brand: "$brand"');
       print('Expiry: "$expiry"');
       print('Mfg: "$mfg"');
       print('Category: "$category"');
+      print('Batch: "$batch"');
+      print('Ingredients: "$ingredients"');
 
       // Fallback to local extraction only if AI vision data is empty
       if (name.isEmpty) {
@@ -584,11 +609,6 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
       print('FINAL - Populated name: "$name"');
 
       // Use AI vision brand data
-      if (brand.isEmpty) {
-        brand = _extractBrandFromText(
-          widget.analysisData!['text']?.toString() ?? '',
-        );
-      }
       _brandController.text = brand;
       print('FINAL - Populated brand: "$brand"');
 
