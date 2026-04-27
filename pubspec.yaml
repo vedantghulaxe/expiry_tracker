@@ -1,0 +1,88 @@
+name: expiry_tracker_app
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+8
+
+environment:
+  sdk: '>=3.8.0 <4.0.0' # ✅ Updated to fix json_serializable compatibility
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.6
+
+  # State Management
+  flutter_bloc: ^8.1.3
+
+  # OCR Engine - Temporarily disabled due to CMake build issues
+  # tesseract_ocr: ^0.4.0
+
+  # Database (Drift/SQLite)
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  sqlite3: ^2.4.0
+  sqflite: ^2.3.3
+
+  # Utilities
+  intl: ^0.18.1
+  path_provider: ^2.1.2
+  path: ^1.9.0
+  shared_preferences: ^2.2.3
+  local_auth: ^2.1.8
+
+  # ✅ ML Kit (Alternative/Updated Text Recognition)
+  google_mlkit_commons: ^0.11.1
+  google_mlkit_text_recognition: ^0.15.1
+  google_mlkit_barcode_scanning: ^0.14.2
+
+  # Scanner
+  mobile_scanner: ^5.1.0
+
+  # Notifications & Background Tasks
+  flutter_local_notifications: ^17.0.0
+  workmanager: ^0.9.0
+
+  # Image Input
+  image_picker: ^1.0.7
+
+  # HTTP for Barcode & Online OCR
+  http: ^1.1.0
+  
+  # JSON Serialization
+  json_annotation: ^4.11.0 # ✅ Updated to resolve build_runner warning
+  
+  # Network Image Caching
+  cached_network_image: ^3.2.0
+  
+  # Connectivity Check
+  connectivity_plus: ^4.0.0
+
+  # Batch Processing & File Handling
+  # file_picker: ^5.5.0  # Temporarily removed due to compatibility issues
+  permission_handler: ^11.1.0
+  
+  # CSV & Excel Export
+  csv: ^6.0.0
+  excel: ^4.0.1
+  
+  # Image Processing
+  image: ^4.1.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # Drift Code Generation
+  drift_dev: ^2.16.0
+  build_runner: ^2.4.8
+  json_serializable: ^6.7.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/tessdata/eng.traineddata
