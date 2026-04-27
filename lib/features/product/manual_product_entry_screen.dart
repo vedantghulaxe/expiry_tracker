@@ -494,41 +494,32 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
         }
       }
 
-      // AI-POWERED: Get raw text for intelligent analysis
-      String rawText = widget.analysisData!['text']?.toString() ?? '';
-      print('=== AI ANALYSIS OF RAW TEXT ===');
-      print('Raw text: "$rawText"');
+      // PRIORITY: Use AI vision extracted data directly from Oxlo.ai
+      // This bypasses local regex extraction for accuracy
+      String name = parsedData['name']?.toString() ?? '';
+      String brand = parsedData['brand']?.toString() ?? parsedData['manufacturer']?.toString() ?? '';
+      String expiry = parsedData['expiry_date']?.toString() ?? parsedData['expiryDate']?.toString() ?? '';
+      String mfg = parsedData['mfg_date']?.toString() ?? parsedData['mfgDate']?.toString() ?? '';
+      String ingredients = parsedData['ingredients']?.toString() ?? '';
+      String category = parsedData['category']?.toString() ?? '';
+      String batch = parsedData['batch']?.toString() ?? '';
 
-      // AI-POWERED: Extract information using intelligent decision making
-      Map<String, dynamic> aiExtracted = _aiExtractInformation(
-        rawText,
-        parsedData,
-      );
+      print('=== AI VISION DATA ===');
+      print('Name: "$name"');
+      print('Brand: "$brand"');
+      print('Expiry: "$expiry"');
+      print('Mfg: "$mfg"');
+      print('Category: "$category"');
 
-      // DEBUG: Print all available fields
-      print('=== AVAILABLE FIELDS ===');
-      parsedData.forEach((key, value) {
-        print('Field: $key = "$value" (Type: ${value.runtimeType})');
-      });
-
-      print('=== AI EXTRACTED FIELDS ===');
-      aiExtracted.forEach((key, value) {
-        print('AI Field: $key = "$value"');
-      });
-
-      // AI-POWERED: Use AI-extracted data first
-      String name = aiExtracted['name']?.toString() ?? '';
-      if (name.isNotEmpty) {
-        print('AI: Using AI-extracted name: "$name"');
-      } else if (parsedData['name'] != null &&
-          parsedData['name'].toString().isNotEmpty &&
-          parsedData['name'] != 'Unknown') {
-        name = parsedData['name'].toString();
-        print('Found name from parsed_data: "$name"');
-      } else if (widget.analysisData!['text'] != null &&
-          widget.analysisData!['text'].toString().isNotEmpty) {
-        name = widget.analysisData!['text'].toString().split('\n').first;
-        print('Found name from text: "$name"');
+      // Fallback to local extraction only if AI vision data is empty
+      if (name.isEmpty) {
+        String rawText = widget.analysisData!['text']?.toString() ?? '';
+        print('AI vision name empty, using local extraction');
+        Map<String, dynamic> localExtracted = _aiExtractInformation(rawText, parsedData);
+        name = localExtracted['name']?.toString() ?? '';
+        if (brand.isEmpty) brand = localExtracted['brand']?.toString() ?? '';
+        if (expiry.isEmpty) expiry = localExtracted['expiryDate']?.toString() ?? '';
+        if (mfg.isEmpty) mfg = localExtracted['mfgDate']?.toString() ?? '';
       }
 
       // AGGRESSIVE: Always populate name if we have any text
@@ -573,7 +564,7 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
           for (String line in lines) {
             line = line.trim();
             if (line.length > 2 &&
-                line.length < 15 &&
+                line.length < 20 &&
                 !line.contains(RegExp(r'\d')) &&
                 !line.toLowerCase().contains('batch') &&
                 !line.toLowerCase().contains('mfg') &&
@@ -581,75 +572,41 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
               possibleNames.add(line);
             }
           }
-
           if (possibleNames.length >= 2) {
-            name = possibleNames.take(3).join(' ');
-            print('Combined name extraction: "$name"');
+            name = possibleNames.take(2).join(' ');
+          } else if (possibleNames.isNotEmpty) {
+            name = possibleNames.first;
           }
         }
       }
 
-      if (name.isNotEmpty && name != 'Unknown') {
-        _nameController.text = name;
-        print('FINAL - Populated name: "$name"');
-      } else {
-        print('FINAL - No name found to populate');
-      }
+      _nameController.text = name;
+      print('FINAL - Populated name: "$name"');
 
-      // AI-POWERED: Use AI-extracted brand first
-      String brand = aiExtracted['brand']?.toString() ?? '';
-      if (brand.isNotEmpty) {
-        print('AI: Using AI-extracted brand: "$brand"');
-      } else if (parsedData['brand'] != null &&
-          parsedData['brand'].toString().isNotEmpty &&
-          parsedData['brand'] != 'Not detected') {
-        brand = parsedData['brand'].toString();
-        print('Found brand from parsed_data: "$brand"');
+      // Use AI vision brand data
+      if (brand.isEmpty) {
+        brand = _extractBrandFromText(
+          widget.analysisData!['text']?.toString() ?? '',
+        );
       }
+      _brandController.text = brand;
+      print('FINAL - Populated brand: "$brand"');
 
-      // AGGRESSIVE: Try to extract brand from text
-      if (brand.isEmpty && widget.analysisData!['text'] != null) {
-        String fullText = widget.analysisData!['text'].toString();
-        List<String> lines = fullText.split('\n');
-        for (String line in lines) {
-          line = line.trim();
-          if (line.toLowerCase().contains('manufactured by') ||
-              line.toLowerCase().contains('marketed by') ||
-              line.toLowerCase().contains('pvt. ltd.') ||
-              line.toLowerCase().contains('laboratories')) {
-            brand = line;
-            print('Aggressive brand extraction: "$brand"');
-            break;
-          }
-        }
-      }
-
-      if (brand.isNotEmpty) {
-        _brandController.text = brand;
-        print('FINAL - Populated brand: "$brand"');
-      }
-
-      // AI-POWERED: Use AI-extracted category first
-      String category = aiExtracted['category']?.toString() ?? '';
-      if (category.isEmpty) {
-        category = parsedData['category']?.toString() ?? '';
-      }
+      // Use AI vision category data
       if (category.isEmpty || category == 'product') {
-        if (widget.isMedicine || aiExtracted['isMedicine'] == true) {
+        if (widget.isMedicine) {
           category = 'medicine';
         } else {
           category = 'product';
         }
       }
       _categoryController.text = category;
-      print('AI: Using AI-extracted category: "$category"');
+      print('FINAL - Populated category: "$category"');
 
-      // Populate ingredients
-      if (parsedData['ingredients'] != null &&
-          parsedData['ingredients'].toString().isNotEmpty &&
-          parsedData['ingredients'] != 'Not detected') {
-        _ingredientsController.text = parsedData['ingredients'].toString();
-        print('Populated ingredients: "${parsedData['ingredients']}"');
+      // Use AI vision ingredients data
+      if (ingredients.isNotEmpty) {
+        _ingredientsController.text = ingredients;
+        print('Populated ingredients: "$ingredients"');
       } else if (widget.analysisData!['text'] != null) {
         final extractedIngredients = _extractIngredientsFromText(
           widget.analysisData!['text'].toString(),
@@ -681,18 +638,8 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
       // Build comprehensive notes
       List<String> notes = [];
 
-      // AI-POWERED: Use AI-extracted batch number first
-      String batchNumber = aiExtracted['batchNumber']?.toString() ?? '';
-      if (batchNumber.isNotEmpty) {
-        print('AI: Using AI-extracted batch number: "$batchNumber"');
-      } else if (parsedData['batchNumber'] != null &&
-          parsedData['batchNumber'].toString().isNotEmpty &&
-          parsedData['batchNumber'] != 'Not found') {
-        batchNumber = parsedData['batchNumber'].toString();
-        print('Found batch from parsed_data: "$batchNumber"');
-      }
-
-      if (batchNumber.isEmpty && widget.analysisData!['text'] != null) {
+      // Use AI vision batch data
+      if (batch.isEmpty && widget.analysisData!['text'] != null) {
         String fullText = widget.analysisData!['text'].toString();
         List<String> lines = fullText.split('\n');
         for (String line in lines) {
@@ -700,16 +647,16 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
           if (line.toLowerCase().contains('batch') ||
               line.contains(RegExp(r'^[A-Z]{2,}\s+/\s+\d+')) ||
               line.contains(RegExp(r'^[A-Z]{2,}\s+\d+'))) {
-            batchNumber = line;
-            print('Aggressive batch extraction: "$batchNumber"');
+            batch = line;
+            print('Aggressive batch extraction: "$batch"');
             break;
           }
         }
       }
 
-      if (batchNumber.isNotEmpty) {
-        notes.add('Batch Number: $batchNumber');
-        print('FINAL - Added batch to notes: $batchNumber');
+      if (batch.isNotEmpty) {
+        notes.add('Batch Number: $batch');
+        print('FINAL - Added batch to notes: $batch');
       }
 
       // Add dosage
@@ -762,21 +709,17 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
         print('Populated notes with ${notes.length} items');
       }
 
-      // AI-POWERED: Use AI-extracted dates first
-      String expiryDate = aiExtracted['expiryDate']?.toString() ?? '';
-      String mfgDate = aiExtracted['mfgDate']?.toString() ?? '';
+      // Use AI vision dates directly
+      String expiryDate = expiry.isNotEmpty ? expiry : '';
+      String mfgDate = mfg.isNotEmpty ? mfg : '';
 
-      if (expiryDate.isNotEmpty) {
-        print('AI: Using AI-extracted expiry date: "$expiryDate"');
-      } else if (parsedData['expiryDate'] != null &&
+      if (expiryDate.isEmpty && parsedData['expiryDate'] != null &&
           parsedData['expiryDate'].toString().isNotEmpty) {
         expiryDate = parsedData['expiryDate'].toString();
         print('Found expiry from parsed_data: "$expiryDate"');
       }
 
-      if (mfgDate.isNotEmpty) {
-        print('AI: Using AI-extracted mfg date: "$mfgDate"');
-      } else if (parsedData['mfgDate'] != null &&
+      if (mfgDate.isEmpty && parsedData['mfgDate'] != null &&
           parsedData['mfgDate'].toString().isNotEmpty) {
         mfgDate = parsedData['mfgDate'].toString();
         print('Found mfg from parsed_data: "$mfgDate"');

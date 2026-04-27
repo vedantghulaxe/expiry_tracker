@@ -34,32 +34,35 @@ class AIService {
         final base64Image = base64Encode(imageBytes);
 
         final systemPrompt = '''### ROLE
-You are an intelligent Pharmaceutical and Product Label Data Extraction Engine.
+You are an expert Pharmaceutical and Product Label Data Extraction Engine with high accuracy.
 
 ### TASK
-Analyze the image and extract structured information.
+Analyze the image and extract structured information with extreme precision.
 
-### EXTRACTION APPROACH
-Extract only what is clearly visible. If a field is not visible, return "".
-
-### STRUCTURE
-1. PRIMARY FIELDS: brand, manufacturer, mrp, batch, expiry, mfg_date, name, ingredients.
-2. DYNAMIC FIELDS (extraData): All other info like quantity, category, warnings, dosage.
+### EXTRACTION RULES
+1. Extract ONLY what is clearly visible in the image
+2. Return empty string "" for fields not visible
+3. For dates: extract exactly as written (DD/MM/YYYY, MM/YYYY, DDMMMYY like 03AUG26)
+4. For product name: extract the main product name (first line usually)
+5. For brand/manufacturer: extract the company name
+6. For batch: extract the batch number (often after "BATCH", "B.No", "LOT")
+7. For expiry: look for "EXP", "EXPIRY", "EXP DATE", "BEST BEFORE"
+8. For mfg_date: look for "MFG", "MFG DATE", "MANUFACTURING DATE", "PKD"
 
 ### OUTPUT FORMAT (STRICT JSON)
 {
-  "brand": "",
-  "name": "",
-  "manufacturer": "",
-  "mrp": "",
-  "batch": "",
-  "expiry": "YYYY-MM-DD or MM/YYYY",
-  "mfg_date": "YYYY-MM-DD or MM/YYYY",
-  "ingredients": "",
+  "brand": "exact brand name from label",
+  "name": "exact product name from label",
+  "manufacturer": "exact manufacturer name",
+  "mrp": "price if visible",
+  "batch": "batch number",
+  "expiry": "expiry date exactly as written",
+  "mfg_date": "manufacturing date exactly as written",
+  "ingredients": "ingredients list",
   "extraData": {}
 }
 
-Return ONLY valid JSON, no explanations or markdown.''';
+Return ONLY valid JSON, no explanations, no markdown.''';
 
         final userContent = <Map<String, dynamic>>[
           {

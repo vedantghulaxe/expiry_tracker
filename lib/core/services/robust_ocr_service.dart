@@ -232,27 +232,26 @@ class RobustOCRService {
         }
       }
 
+      // Infer category from content
       if (structuredData['category'].toString().isEmpty) {
         final raw = jsonEncode(result).toLowerCase();
         if (raw.contains('tablet') ||
             raw.contains('capsule') ||
             raw.contains('medicine') ||
-            raw.contains('pharma')) {
+            raw.contains('pharma') ||
+            raw.contains('dosage')) {
           structuredData['category'] = 'medicine';
         } else {
           structuredData['category'] = 'product';
         }
       }
 
-      // Calculate confidence based on fields filled
-      int filledFields = 0;
-      int totalFields = 4; // name, expiry_date, mfg_date, category
-      if (structuredData['name'].toString().isNotEmpty) filledFields++;
-      if (structuredData['expiry_date'].toString().isNotEmpty) filledFields++;
-      if (structuredData['mfg_date'].toString().isNotEmpty) filledFields++;
-      if (structuredData['category'].toString().isNotEmpty) filledFields++;
-
+      // Calculate confidence based on filled fields
+      final totalFields = 9;
+      final filledFields = structuredData.values.where((v) => v != null && v.toString().isNotEmpty).length;
       structuredData['confidence'] = filledFields / totalFields;
+
+      LoggerService.info('ROBUST_OCR', 'AI extracted: name="${structuredData['name']}", expiry="${structuredData['expiry_date']}", brand="${structuredData['brand']}"');
 
       LoggerService.success(
         'ROBUST_OCR',
