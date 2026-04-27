@@ -55,25 +55,28 @@ class AIExtractionService {
     return _isInitialized && _apiKey.isNotEmpty;
   }
 
-  /// Extract structured data from OCR text using Oxlo.ai
+  /// Extract structured data from OCR text using Oxlo.ai with retry logic
   static Future<Map<String, dynamic>> extractStructuredData(String ocrText) async {
-    try {
-      if (!isAvailable()) {
-        LoggerService.warning('AI', 'Oxlo.ai service not available');
-        return {};
-      }
+    int maxRetries = 3;
+    
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (!isAvailable()) {
+          LoggerService.warning('AI', 'Oxlo.ai service not available');
+          return {};
+        }
 
-      if (ocrText.trim().isEmpty) {
-        LoggerService.warning('AI', 'Empty OCR text provided');
-        return {};
-      }
+        if (ocrText.trim().isEmpty) {
+          LoggerService.warning('AI', 'Empty OCR text provided');
+          return {};
+        }
 
-      LoggerService.start('AI', 'Starting Oxlo.ai extraction');
-      print('=== Starting AI Extraction ===');
-      print('OCR Text Length: ${ocrText.length}');
-      print('Sample Text: "${ocrText.substring(0, ocrText.length > 100 ? 100 : ocrText.length)}..."');
+        LoggerService.start('AI', 'Starting Oxlo.ai extraction (attempt $attempt)');
+        print('=== Starting AI Extraction ===');
+        print('OCR Text Length: ${ocrText.length}');
+        print('Sample Text: "${ocrText.substring(0, ocrText.length > 100 ? 100 : ocrText.length)}..."');
 
-      final prompt = '''
+        final prompt = '''
 Extract product/medicine information from this OCR text and return ONLY valid JSON:
 
 OCR Text:
@@ -99,70 +102,90 @@ Rules:
 - Set confidence based on text clarity
 ''';
 
-      print('Sending request to Oxlo.ai...');
-      final response = await http
-          .post(
-            Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $_apiKey',
-            },
-            body: jsonEncode({
-              'model': ConfigService.oxloTextModel,
-              'messages': [
-                {'role': 'user', 'content': prompt},
-              ],
-              'max_tokens': 1024,
-              'temperature': 0.1,
-            }),
-          )
-          .timeout(ConfigService.apiTimeout);
+        print('Sending request to Oxlo.ai...');
+        final response = await http
+            .post(
+              Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $_apiKey',
+                'User-Agent': 'ExpiryTrackerApp/1.0',
+              },
+              body: jsonEncode({
+                'model': ConfigService.oxloTextModel,
+                'messages': [
+                  {'role': 'user', 'content': prompt},
+                ],
+                'max_tokens': 1024,
+                'temperature': 0.1,
+              }),
+            )
+            .timeout(ConfigService.apiTimeout);
 
-      final aiText = response.statusCode == 200
-          ? (jsonDecode(response.body)['choices']?[0]?['message']?['content']
-                  ?.toString() ??
-              '')
-          : '';
+        final aiText = response.statusCode == 200
+            ? (jsonDecode(response.body)['choices']?[0]?['message']?['content']
+                    ?.toString() ??
+                '')
+            : '';
 
-      print('AI Response received');
-      print('AI Text Length: ${aiText.length}');
+        print('AI Response received');
+        print('AI Text Length: ${aiText.length}');
 
-      // Parse JSON response
-      try {
-        // Clean up response to extract JSON
-        String jsonText = aiText.trim();
-        if (jsonText.contains('```json')) {
-          jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-        } else if (jsonText.contains('{')) {
-          jsonText = jsonText.substring(jsonText.indexOf('{'));
-          if (jsonText.contains('}')) {
-            jsonText = jsonText.substring(0, jsonText.lastIndexOf('}') + 1);
+        // Parse JSON response
+        try {
+          // Clean up response to extract JSON
+          String jsonText = aiText.trim();
+          if (jsonText.contains('```json')) {
+            jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+          } else if (jsonText.contains('{')) {
+            jsonText = jsonText.substring(jsonText.indexOf('{'));
+            if (jsonText.contains('}')) {
+              jsonText = jsonText.substring(0, jsonText.lastIndexOf('}') + 1);
+            }
           }
+
+          final Map<String, dynamic> result = jsonDecode(jsonText);
+
+          // Validate and clean result
+          final cleanedResult = _validateAIResult(result);
+
+          LoggerService.success('AI', 'Oxlo.ai extraction completed successfully');
+          print('=== AI Extraction Successful ===');
+          print('Extracted Name: ${cleanedResult['name']}');
+          print('Category: ${cleanedResult['category']}');
+          print('Confidence: ${cleanedResult['confidence']}');
+
+          return cleanedResult;
+        } catch (e) {
+          LoggerService.error('AI', 'Failed to parse AI response: $e');
+          print('JSON Parse Error: $e');
+          print('Raw AI Response: $aiText');
+          return {};
         }
-
-        final Map<String, dynamic> result = jsonDecode(jsonText);
-
-        // Validate and clean result
-        final cleanedResult = _validateAIResult(result);
-
-        LoggerService.success('AI', 'Oxlo.ai extraction completed successfully');
-        print('=== AI Extraction Successful ===');
-        print('Extracted Name: ${cleanedResult['name']}');
-        print('Category: ${cleanedResult['category']}');
-        print('Confidence: ${cleanedResult['confidence']}');
-
-        return cleanedResult;
+      } on SocketException catch (e) {
+        LoggerService.error('AI', 'Connection error (attempt $attempt): $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+      } on HttpException catch (e) {
+        LoggerService.error('AI', 'HTTP error (attempt $attempt): $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
       } catch (e) {
-        LoggerService.error('AI', 'Failed to parse AI response: $e');
-        print('JSON Parse Error: $e');
-        print('Raw AI Response: $aiText');
-        return {};
+        LoggerService.error('AI', 'Oxlo.ai extraction failed: $e');
+        print('=== AI Extraction Failed: $e ===');
+        if (attempt < maxRetries && e.toString().contains('connection')) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        break;
       }
-    } catch (e) {
-      LoggerService.error('AI', 'Oxlo.ai extraction failed: $e');
-      print('=== AI Extraction Failed: $e ===');
-      return {};
     }
+    
+    return {};
   }
 
   /// Validate and clean AI result

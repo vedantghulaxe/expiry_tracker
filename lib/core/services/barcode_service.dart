@@ -49,13 +49,18 @@ class BarcodeService {
     }
   }
 
-  /// Use Oxlo.ai to identify product from barcode number
+  /// Use Oxlo.ai to identify product from barcode number with retry logic
   static Future<Map<String, dynamic>> _lookupBarcodeWithAI(String barcode) async {
-    try {
-      final apiKey = ConfigService.oxloApiKey;
-      if (apiKey.isEmpty) return {};
+    final apiKey = ConfigService.oxloApiKey;
+    if (apiKey.isEmpty) return {};
 
-      final prompt = '''Identify the product associated with this barcode number: $barcode
+    int maxRetries = 3;
+    
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        LoggerService.info('BARCODE', 'Oxlo.ai lookup attempt $attempt of $maxRetries');
+
+        final prompt = '''Identify the product associated with this barcode number: $barcode
 
 Return ONLY valid JSON with these fields:
 {
@@ -71,65 +76,85 @@ Return ONLY valid JSON with these fields:
 If you cannot identify the product, return {"name": "", "confidence": 0.0}.
 Return ONLY JSON, no explanations.''';
 
-      final response = await http
-          .post(
-            Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $apiKey',
-            },
-            body: jsonEncode({
-              'model': ConfigService.oxloTextModel,
-              'messages': [
-                {'role': 'user', 'content': prompt},
-              ],
-              'max_tokens': 512,
-              'temperature': 0.1,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
+        final response = await http
+            .post(
+              Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $apiKey',
+                'User-Agent': 'ExpiryTrackerApp/1.0',
+              },
+              body: jsonEncode({
+                'model': ConfigService.oxloTextModel,
+                'messages': [
+                  {'role': 'user', 'content': prompt},
+                ],
+                'max_tokens': 512,
+                'temperature': 0.1,
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final aiText =
-            data['choices']?[0]?['message']?['content']?.toString() ?? '';
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final aiText =
+              data['choices']?[0]?['message']?['content']?.toString() ?? '';
 
-        if (aiText.isNotEmpty) {
-          String cleanJson = aiText
-              .replaceAll('```json', '')
-              .replaceAll('```', '')
-              .trim();
+          if (aiText.isNotEmpty) {
+            String cleanJson = aiText
+                .replaceAll('```json', '')
+                .replaceAll('```', '')
+                .trim();
 
-          if (cleanJson.contains('{')) {
-            cleanJson = cleanJson.substring(cleanJson.indexOf('{'));
-            if (cleanJson.contains('}')) {
-              cleanJson = cleanJson.substring(0, cleanJson.lastIndexOf('}') + 1);
+            if (cleanJson.contains('{')) {
+              cleanJson = cleanJson.substring(cleanJson.indexOf('{'));
+              if (cleanJson.contains('}')) {
+                cleanJson = cleanJson.substring(0, cleanJson.lastIndexOf('}') + 1);
+              }
+            }
+
+            final Map<String, dynamic> result = jsonDecode(cleanJson);
+            final name = result['name']?.toString() ?? '';
+            final confidence = _parseConfidence(result['confidence']);
+
+            if (name.isNotEmpty && confidence > 0.3) {
+              LoggerService.success('BARCODE', 'Oxlo.ai identified barcode product: $name');
+              return {
+                'success': true,
+                'name': name,
+                'brand': result['brand']?.toString() ?? '',
+                'category': result['category']?.toString() ?? 'product',
+                'ingredients': result['ingredients']?.toString() ?? '',
+                'isMedicine': result['isMedicine'] == true,
+                'confidence': confidence,
+                'source': 'Oxlo.ai (AI Lookup)',
+                'barcode': barcode,
+              };
             }
           }
-
-          final Map<String, dynamic> result = jsonDecode(cleanJson);
-          final name = result['name']?.toString() ?? '';
-          final confidence = _parseConfidence(result['confidence']);
-
-          if (name.isNotEmpty && confidence > 0.3) {
-            LoggerService.success('BARCODE', 'Oxlo.ai identified barcode product: $name');
-            return {
-              'success': true,
-              'name': name,
-              'brand': result['brand']?.toString() ?? '',
-              'category': result['category']?.toString() ?? 'product',
-              'ingredients': result['ingredients']?.toString() ?? '',
-              'isMedicine': result['isMedicine'] == true,
-              'confidence': confidence,
-              'source': 'Oxlo.ai (AI Lookup)',
-              'barcode': barcode,
-            };
-          }
         }
+      } on SocketException catch (e) {
+        LoggerService.warning('BARCODE', 'Connection error (attempt $attempt): $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+      } on HttpException catch (e) {
+        LoggerService.warning('BARCODE', 'HTTP error (attempt $attempt): $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+      } catch (e) {
+        LoggerService.warning('BARCODE', 'Oxlo.ai barcode lookup failed: $e');
+        if (attempt < maxRetries && e.toString().contains('connection')) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        break;
       }
-    } catch (e) {
-      LoggerService.warning('BARCODE', 'Oxlo.ai barcode lookup failed: $e');
     }
+    
     return {};
   }
 

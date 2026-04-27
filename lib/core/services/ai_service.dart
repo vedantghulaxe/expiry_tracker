@@ -6,7 +6,7 @@ import 'logger_service.dart';
 
 class AIService {
   /// Standardized extraction method for both products and medicines
-  /// Uses Oxlo.ai OpenAI-compatible Vision API
+  /// Uses Oxlo.ai OpenAI-compatible Vision API with retry logic
   Future<Map<String, dynamic>> extractStructuredData({
     required String imagePath,
     String? rawText,
@@ -21,11 +21,19 @@ class AIService {
       return _emptyResult();
     }
 
-    try {
-      final imageBytes = await File(imagePath).readAsBytes();
-      final base64Image = base64Encode(imageBytes);
+    // Retry logic for connection issues
+    int maxRetries = 3;
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        LoggerService.info(
+          'AI_PROCESS',
+          'Attempt $attempt of $maxRetries',
+        );
 
-      final systemPrompt = '''### ROLE
+        final imageBytes = await File(imagePath).readAsBytes();
+        final base64Image = base64Encode(imageBytes);
+
+        final systemPrompt = '''### ROLE
 You are an intelligent Pharmaceutical and Product Label Data Extraction Engine.
 
 ### TASK
@@ -53,87 +61,112 @@ Extract only what is clearly visible. If a field is not visible, return "".
 
 Return ONLY valid JSON, no explanations or markdown.''';
 
-      final userContent = <Map<String, dynamic>>[
-        {
-          'type': 'text',
-          'text':
-              'Extract data from this product/medicine label image. OCR Hint: ${rawText ?? ''}. Barcode Hint: ${barcode ?? ''}. Return ONLY the JSON object.',
-        },
-        {
-          'type': 'image_url',
-          'image_url': {
-            'url': 'data:image/jpeg;base64,$base64Image',
+        final userContent = <Map<String, dynamic>>[
+          {
+            'type': 'text',
+            'text':
+                'Extract data from this product/medicine label image. OCR Hint: ${rawText ?? ''}. Barcode Hint: ${barcode ?? ''}. Return ONLY the JSON object.',
           },
-        },
-      ];
-
-      final response = await http
-          .post(
-            Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $apiKey',
+          {
+            'type': 'image_url',
+            'image_url': {
+              'url': 'data:image/jpeg;base64,$base64Image',
             },
-            body: jsonEncode({
-              'model': ConfigService.oxloVisionModel,
-              'messages': [
-                {'role': 'system', 'content': systemPrompt},
-                {'role': 'user', 'content': userContent},
-              ],
-              'max_tokens': 1024,
-              'temperature': 0.1,
-            }),
-          )
-          .timeout(ConfigService.apiTimeout);
+          },
+        ];
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final aiText =
-            data['choices']?[0]?['message']?['content']?.toString() ?? '';
+        final response = await http
+            .post(
+              Uri.parse('${ConfigService.oxloBaseUrl}/chat/completions'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $apiKey',
+                'User-Agent': 'ExpiryTrackerApp/1.0',
+              },
+              body: jsonEncode({
+                'model': ConfigService.oxloVisionModel,
+                'messages': [
+                  {'role': 'system', 'content': systemPrompt},
+                  {'role': 'user', 'content': userContent},
+                ],
+                'max_tokens': 1024,
+                'temperature': 0.1,
+              }),
+            )
+            .timeout(ConfigService.apiTimeout);
 
-        if (aiText.isNotEmpty) {
-          LoggerService.success('AI_PROCESS', 'Oxlo.ai response received');
-          print("[AI_DEBUG] Raw Response: $aiText");
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final aiText =
+              data['choices']?[0]?['message']?['content']?.toString() ?? '';
 
-          String cleanJson = aiText
-              .replaceAll("```json", "")
-              .replaceAll("```", "")
-              .trim();
+          if (aiText.isNotEmpty) {
+            LoggerService.success('AI_PROCESS', 'Oxlo.ai response received');
+            print("[AI_DEBUG] Raw Response: $aiText");
 
-          // Extract JSON from response
-          if (cleanJson.contains('{')) {
-            cleanJson = cleanJson.substring(cleanJson.indexOf('{'));
-            if (cleanJson.contains('}')) {
-              cleanJson =
-                  cleanJson.substring(0, cleanJson.lastIndexOf('}') + 1);
+            String cleanJson = aiText
+                .replaceAll("```json", "")
+                .replaceAll("```", "")
+                .trim();
+
+            // Extract JSON from response
+            if (cleanJson.contains('{')) {
+              cleanJson = cleanJson.substring(cleanJson.indexOf('{'));
+              if (cleanJson.contains('}')) {
+                cleanJson =
+                    cleanJson.substring(0, cleanJson.lastIndexOf('}') + 1);
+              }
             }
+
+            final Map<String, dynamic> result = jsonDecode(cleanJson);
+
+            return {
+              "brand": result['brand'] ?? "",
+              "name": result['name'] ?? "",
+              "manufacturer": result['manufacturer'] ?? "",
+              "mrp": result['mrp'] ?? "",
+              "batch": result['batch'] ?? "",
+              "expiry": result['expiry'] ?? "",
+              "mfg_date": result['mfg_date'] ?? "",
+              "ingredients": result['ingredients'] ?? "",
+              "extraData": jsonEncode(result['extraData'] ?? {}),
+            };
           }
-
-          final Map<String, dynamic> result = jsonDecode(cleanJson);
-
-          return {
-            "brand": result['brand'] ?? "",
-            "name": result['name'] ?? "",
-            "manufacturer": result['manufacturer'] ?? "",
-            "mrp": result['mrp'] ?? "",
-            "batch": result['batch'] ?? "",
-            "expiry": result['expiry'] ?? "",
-            "mfg_date": result['mfg_date'] ?? "",
-            "ingredients": result['ingredients'] ?? "",
-            "extraData": jsonEncode(result['extraData'] ?? {}),
-          };
+        } else {
+          LoggerService.error(
+            'AI_PROCESS',
+            'Oxlo.ai HTTP Error: ${response.statusCode} - ${response.body}',
+          );
+          print(
+              "[AI_DEBUG] HTTP Error: ${response.statusCode} - ${response.body}");
         }
-      } else {
+      } on SocketException catch (e) {
         LoggerService.error(
           'AI_PROCESS',
-          'Oxlo.ai HTTP Error: ${response.statusCode} - ${response.body}',
+          'Connection error (attempt $attempt): $e',
         );
-        print(
-            "[AI_DEBUG] HTTP Error: ${response.statusCode} - ${response.body}");
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+      } on HttpException catch (e) {
+        LoggerService.error(
+          'AI_PROCESS',
+          'HTTP error (attempt $attempt): $e',
+        );
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+      } catch (e) {
+        LoggerService.error('AI_PROCESS', 'Oxlo.ai Error: $e');
+        print("[AI_DEBUG] Exception Details: $e");
+        if (attempt < maxRetries && e.toString().contains('connection')) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        break;
       }
-    } catch (e) {
-      LoggerService.error('AI_PROCESS', 'Oxlo.ai Error: $e');
-      print("[AI_DEBUG] Exception Details: $e");
     }
 
     return _emptyResult();
