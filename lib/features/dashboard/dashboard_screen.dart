@@ -270,7 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 () => _navigateToBiometricCheck(context),
               ),
             ),
-            ],
+          ],
         ),
       ],
     );
