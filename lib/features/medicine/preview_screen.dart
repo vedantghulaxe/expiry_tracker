@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import '../../core/services/api_service.dart';
 import '../../core/services/logger_service.dart';
 import '../../data/repositories/medicine_repository.dart';
 import '../../models/product_info.dart';
@@ -115,10 +114,10 @@ class _MedicinePreviewScreenState extends State<MedicinePreviewScreen> {
     LoggerService.info('PREVIEW_INIT', 'Controllers initialized with data: ${nameController.text}');
   }
 
+  // Backend removed - no health check needed
   Future<void> _checkBackendHealth() async {
-    final isHealthy = await ApiService.checkHealth();
     setState(() {
-      backendSyncEnabled = isHealthy;
+      backendSyncEnabled = false;
     });
   }
 
@@ -148,27 +147,7 @@ class _MedicinePreviewScreenState extends State<MedicinePreviewScreen> {
 
       LoggerService.success('PREVIEW_SAVE', 'Saved to local database');
 
-      // Step 2: Sync to backend (if available)
-      if (backendSyncEnabled) {
-        try {
-          await ApiService.syncItem(
-            name: nameController.text.trim(),
-            category: 'medicine',
-            brand: manufacturerController.text.trim(),
-            dosage: dosageController.text.trim(),
-            doctorName: doctorController.text.trim(),
-            symptoms: symptomsController.text.trim(),
-            prescriptionImage: widget.imagePath,
-            mrp: mrpController.text.trim(),
-            batch: batchController.text.trim(),
-            manufacturer: manufacturerController.text.trim(),
-            extraData: widget.extractedData.toString(),
-          );
-          LoggerService.success('PREVIEW_SYNC', 'Synced to backend successfully');
-        } catch (e) {
-          LoggerService.warning('PREVIEW_SYNC', 'Backend sync failed, but local save succeeded: $e');
-        }
-      }
+      // Backend removed - no sync needed
 
       if (mounted) {
         _showSuccess('Medicine saved successfully!');

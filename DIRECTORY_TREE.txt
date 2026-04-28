@@ -1,0 +1,316 @@
+EXPIRY TRACKER APP - COMPLETE DIRECTORY TREE
+==============================================
+
+📦 expiry_tracker_app/
+│
+├── 📱 MOBILE PLATFORMS
+│   ├── 📂 android/                          # Android platform code
+│   │   ├── app/
+│   │   │   ├── src/
+│   │   │   │   ├── main/
+│   │   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   │   ├── kotlin/
+│   │   │   │   │   └── res/
+│   │   │   │   ├── debug/
+│   │   │   │   └── profile/
+│   │   │   └── build.gradle.kts
+│   │   ├── gradle/
+│   │   ├── build.gradle.kts
+│   │   └── settings.gradle.kts
+│   │
+│   └── 📂 ios/                              # iOS platform code
+│       ├── Runner/
+│       │   ├── AppDelegate.swift
+│       │   ├── Info.plist
+│       │   ├── Assets.xcassets/
+│       │   └── Base.lproj/
+│       ├── Runner.xcodeproj/
+│       └── Runner.xcworkspace/
+│
+├── 💻 DESKTOP PLATFORMS
+│   ├── 📂 linux/                            # Linux platform code
+│   │   ├── flutter/
+│   │   ├── runner/
+│   │   └── CMakeLists.txt
+│   │
+│   ├── 📂 macos/                            # macOS platform code
+│   │   ├── Runner/
+│   │   ├── Runner.xcodeproj/
+│   │   └── Runner.xcworkspace/
+│   │
+│   └── 📂 windows/                          # Windows platform code
+│       ├── flutter/
+│       ├── runner/
+│       └── CMakeLists.txt
+│
+├── 🌐 WEB PLATFORM
+│   └── 📂 web/                              # Web platform code
+│       ├── icons/
+│       ├── index.html
+│       ├── manifest.json
+│       └── favicon.png
+│
+├── 📚 MAIN APPLICATION CODE
+│   └── 📂 lib/                              # Flutter application code
+│       │
+│       ├── 📄 main.dart                     # ⭐ App entry point
+│       │
+│       ├── 📂 core/                         # Core business logic
+│       │   │
+│       │   ├── 📂 services/                 # Business services (18 files)
+│       │   │   ├── 🤖 AI & OCR Services
+│       │   │   │   ├── ai_service.dart                    # Oxlo.ai integration
+│       │   │   │   ├── ai_extraction_service.dart         # Data extraction
+│       │   │   │   ├── robust_ocr_service.dart            # Multi-stage OCR
+│       │   │   │   ├── simple_ocr_service.dart            # Simple OCR
+│       │   │   │   └── local_parser_service.dart          # Regex parsing
+│       │   │   │
+│       │   │   ├── 📷 Barcode Services
+│       │   │   │   ├── barcode_service.dart               # Barcode scanning
+│       │   │   │   ├── barcode_api_service.dart           # Barcode APIs
+│       │   │   │   └── product_api_service.dart           # Product APIs
+│       │   │   │
+│       │   │   ├── 💾 Database & Storage
+│       │   │   │   ├── database_service.dart              # DB management
+│       │   │   │   └── config_service.dart                # Configuration
+│       │   │   │
+│       │   │   ├── 🔐 Security
+│       │   │   │   └── biometric_service.dart             # Biometric auth
+│       │   │   │
+│       │   │   ├── 🖼️ Image Processing
+│       │   │   │   ├── image_validation_service.dart      # Image validation
+│       │   │   │   └── image_enhancement_service.dart     # Image enhancement
+│       │   │   │
+│       │   │   └── 🛠️ Utilities
+│       │   │       ├── logger_service.dart                # Logging
+│       │   │       ├── theme_service.dart                 # Theme management
+│       │   │       ├── notification_service.dart          # Notifications
+│       │   │       ├── connectivity_service.dart          # Network check
+│       │   │       └── simple_service_manager.dart        # Service init
+│       │   │
+│       │   └── 📂 utils/                    # Utility functions (2 files)
+│       │       ├── expiry_insights.dart                   # Expiry calculations
+│       │       └── ui_helpers.dart                        # UI utilities
+│       │
+│       ├── 📂 data/                         # Data layer
+│       │   │
+│       │   ├── 📂 database/                 # Database configuration
+│       │   │   ├── app_database.dart                      # Main DB config
+│       │   │   ├── app_database.g.dart                    # Generated code
+│       │   │   ├── database_service.dart                  # DB service
+│       │   │   └── 📂 tables/
+│       │   │       ├── products_table.dart                # Products schema
+│       │   │       ├── medicines_table.dart               # Medicines schema
+│       │   │       └── inventory_table.dart               # Inventory schema
+│       │   │
+│       │   └── 📂 repositories/             # Data repositories (2 files)
+│       │       ├── product_repository.dart                # Product CRUD
+│       │       └── medicine_repository.dart               # Medicine CRUD
+│       │
+│       ├── 📂 features/                     # Feature modules
+│       │   │
+│       │   ├── 📂 analytics/                # Analytics & Statistics
+│       │   │   └── analytics_screen_new.dart              # Analytics dashboard
+│       │   │
+│       │   ├── 📂 auth/                     # Authentication
+│       │   │   └── lock_screen.dart                       # Lock screen
+│       │   │
+│       │   ├── 📂 common/                   # Shared components (3 files)
+│       │   │   ├── barcode_scanner_screen.dart            # Barcode scanner
+│       │   │   ├── image_capture_screen_real_ocr.dart     # Image + OCR
+│       │   │   └── image_capture_screen_simple.dart       # Simple capture
+│       │   │
+│       │   ├── 📂 dashboard/                # Main Dashboard (2 files)
+│       │   │   ├── dashboard_screen.dart                  # Main dashboard
+│       │   │   └── expiry_summary_widget.dart             # Summary cards
+│       │   │
+│       │   ├── 📂 expiry_timeline/          # Timeline View
+│       │   │   └── expiry_timeline_screen.dart            # Timeline screen
+│       │   │
+│       │   ├── 📂 home/                     # Home Screen
+│       │   │   └── home_screen_clean.dart                 # Clean home UI
+│       │   │
+│       │   ├── 📂 inventory/                # Inventory Management (2 files)
+│       │   │   ├── inventory_screen_new.dart              # Main inventory
+│       │   │   └── enhanced_inventory_screen.dart         # Enhanced view
+│       │   │
+│       │   ├── 📂 medicine/                 # Medicine Tracking (6 files)
+│       │   │   ├── medicine_screen.dart                   # Medicine processing
+│       │   │   ├── medicine_list_screen.dart              # Medicine list
+│       │   │   ├── medicine_entry_options_screen.dart     # Entry options
+│       │   │   ├── medicine_entry_method_screen.dart      # Entry method
+│       │   │   ├── manual_medicine_entry_screen.dart      # Manual entry
+│       │   │   └── preview_screen.dart                    # Preview screen
+│       │   │
+│       │   ├── 📂 navigation/               # App Navigation
+│       │   │   └── main_navigation_screen.dart            # Bottom nav
+│       │   │
+│       │   ├── 📂 product/                  # Product Tracking (6 files)
+│       │   │   ├── product_form_screen_new.dart           # Product form
+│       │   │   ├── product_list_screen.dart               # Product list
+│       │   │   ├── product_entry_options_screen.dart      # Entry options
+│       │   │   ├── product_entry_method_screen.dart       # Entry method
+│       │   │   ├── manual_product_entry_screen.dart       # Manual entry
+│       │   │   └── product_scanner_screen.dart            # Product scanner
+│       │   │
+│       │   ├── 📂 security/                 # Security Features
+│       │   │   └── biometric_check_screen.dart            # Security check
+│       │   │
+│       │   └── 📂 settings/                 # App Settings
+│       │       └── settings_screen.dart                   # Settings screen
+│       │
+│       ├── 📂 models/                       # Data models (2 files)
+│       │   ├── product_info.dart                          # Product model
+│       │   └── product_info.g.dart                        # Generated JSON
+│       │
+│       └── 📂 services/                     # External services (7 files)
+│           ├── ai_extraction_service.dart                 # AI extraction
+│           ├── google_ml_kit_ocr_service.dart             # ML Kit OCR
+│           ├── medicine_api_service.dart                  # Medicine APIs
+│           ├── multi_image_service_simple.dart            # Multi-image
+│           ├── online_ocr_service.dart                    # Online OCR
+│           ├── product_api_service.dart                   # Product APIs
+│           └── tesseract_ocr_service.dart                 # Tesseract OCR
+│
+├── 🧪 TESTING
+│   └── 📂 test/                             # Tests
+│       └── widget_test.dart                               # Widget tests
+│
+├── 🎨 ASSETS
+│   └── 📂 assets/                           # Static assets
+│       └── tessdata/
+│           └── eng.traineddata                            # Tesseract data
+│
+├── 🔧 BUILD & TOOLS
+│   ├── 📂 .dart_tool/                       # Dart tooling cache
+│   ├── 📂 .git/                             # Git version control
+│   └── 📂 build/                            # Build output (generated)
+│
+└── 📋 CONFIGURATION & DOCUMENTATION
+    ├── 📄 pubspec.yaml                      # ⭐ Dependencies
+    ├── 📄 pubspec.lock                      # Locked dependencies
+    ├── 📄 analysis_options.yaml             # Linter config
+    ├── 📄 .gitignore                        # Git ignore
+    ├── 📄 .metadata                         # Flutter metadata
+    ├── 📄 devtools_options.yaml             # DevTools config
+    │
+    └── 📚 DOCUMENTATION
+        ├── 📄 API_DOCUMENTATION.md          # API reference
+        ├── 📄 ARCHITECTURE.md               # Architecture guide
+        ├── 📄 BIOMETRIC_AUTHENTICATION.md   # Biometric guide
+        ├── 📄 FILE_DOCUMENTATION.md         # File structure
+        ├── 📄 FUNCTION_DOCUMENTATION.md     # Function reference
+        ├── 📄 PROJECT_STRUCTURE.md          # Complete structure
+        └── 📄 DIRECTORY_TREE.txt            # This file
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 PROJECT STATISTICS
+═══════════════════════════════════════════════════════════════════════════════
+
+Total Dart Files:           62 files
+├── Core Services:          18 files
+├── Feature Screens:        24 files
+├── Data Layer:             7 files
+├── Models:                 2 files
+├── External Services:      7 files
+└── Utils:                  2 files
+
+Code Distribution:
+├── Features:               ~40% (UI & Business Logic)
+├── Core Services:          ~30% (Business Services)
+├── Data Layer:             ~15% (Database & Repositories)
+├── External Services:      ~10% (API Integrations)
+└── Utils & Models:         ~5%  (Utilities & Models)
+
+Platform Support:
+├── ✅ Android              (Full Support)
+├── ✅ iOS                  (Full Support)
+├── ✅ Web                  (PWA Support)
+├── ✅ Windows              (Full Support)
+├── ✅ macOS                (Full Support)
+└── ✅ Linux                (Full Support)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔑 KEY DIRECTORIES EXPLAINED
+═══════════════════════════════════════════════════════════════════════════════
+
+lib/core/services/          Business logic services (AI, OCR, Database, etc.)
+lib/core/utils/             Utility functions and helpers
+lib/data/database/          Database configuration and tables
+lib/data/repositories/      Data access layer (CRUD operations)
+lib/features/               Feature modules (screens and logic)
+lib/models/                 Data models and entities
+lib/services/               External service integrations
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 MAIN FEATURES
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ AI-Powered OCR          Automatic text extraction from images
+✅ Barcode Scanning        Multiple barcode format support
+✅ Product Tracking        Track food products with expiry dates
+✅ Medicine Tracking       Track medicines with dosage info
+✅ Biometric Auth          Fingerprint/Face ID authentication
+✅ Analytics Dashboard     Statistics and insights
+✅ Expiry Notifications    Timely expiry alerts
+✅ Multi-Image Support     Process multiple images at once
+✅ Offline Support         Works without internet
+✅ Cross-Platform          Android, iOS, Web, Desktop
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔗 EXTERNAL INTEGRATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+API Integrations:
+├── Oxlo.ai                AI-powered OCR and data extraction
+├── Open Food Facts        Food product database (Free)
+├── FDA Drug Database      Medicine information (Free)
+├── UPCItemDB              General product lookup (Free trial)
+└── Google ML Kit          On-device OCR and barcode scanning
+
+ML/AI Services:
+├── Google ML Kit          Text recognition, barcode scanning
+├── Tesseract OCR          Offline text extraction
+└── Oxlo.ai Vision         AI-powered structured data extraction
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📦 DEPENDENCIES (Key Packages)
+═══════════════════════════════════════════════════════════════════════════════
+
+State Management:          flutter_bloc ^8.1.3
+Database:                  drift ^2.20.0, sqflite ^2.3.3
+OCR & ML:                  google_mlkit_text_recognition ^0.15.1
+Barcode:                   mobile_scanner ^5.1.0
+Authentication:            local_auth ^2.1.8
+Image Processing:          image_picker ^1.0.7, image ^4.1.3
+HTTP:                      http ^1.1.0
+Notifications:             flutter_local_notifications ^17.0.0
+Export:                    csv ^6.0.0, excel ^4.0.1
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🏗️ ARCHITECTURE PATTERN
+═══════════════════════════════════════════════════════════════════════════════
+
+Pattern:                   Clean Architecture + Repository Pattern
+State Management:          BLoC (Business Logic Component)
+Database:                  Drift ORM with SQLite
+Navigation:                Flutter Navigator 2.0
+
+Layer Structure:
+├── Presentation Layer     UI screens and widgets
+├── Business Logic Layer   Services and BLoC
+├── Data Layer             Repositories and database
+└── External Layer         API integrations
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Version: 1.0.0+8
+Flutter SDK: >=3.8.0 <4.0.0
+Last Updated: 2024

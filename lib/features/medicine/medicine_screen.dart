@@ -9,7 +9,6 @@ import '../../core/services/simple_ocr_service.dart';
 import '../../core/services/ai_service.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/logger_service.dart';
-import '../../core/services/api_service.dart';
 import '../../data/repositories/medicine_repository.dart';
 import '../../models/product_info.dart';
 import 'preview_screen.dart';
@@ -96,25 +95,10 @@ class _MedicineScreenState extends State<MedicineScreen> {
       LoggerService.info('TEST_OCR', 'Using mock OCR data');
       LoggerService.success('TEST_GEMINI', 'Using mock Gemini data');
 
-      // Step 2: Backend Processing (if available)
-      Map<String, dynamic> backendData = {};
-      try {
-        backendData = await ApiService.processData(
-          rawText: ocrResult['text'] ?? '',
-          barcode: ocrResult['barcode'] ?? '',
-          category: 'medicine',
-          geminiData: geminiData,
-        );
-        LoggerService.success('TEST_BACKEND', 'Backend validation completed');
-      } catch (e) {
-        LoggerService.warning('TEST_BACKEND_FALLBACK', 'Backend processing failed, using Gemini data: $e');
-        backendData = geminiData;
-      }
-
-      // Step 3: Use final data
-      final finalData = backendData.isNotEmpty ? backendData : geminiData;
+      // Step 2: Use Gemini data directly (backend removed)
+      final finalData = geminiData;
       
-      // Step 4: Navigate to Preview Screen
+      // Step 3: Navigate to Preview Screen
       if (mounted) {
         final result = await Navigator.of(context).push(
           MaterialPageRoute(
@@ -166,25 +150,10 @@ class _MedicineScreenState extends State<MedicineScreen> {
 
       LoggerService.success('GEMINI_PROCESS', 'Gemini extraction completed: ${geminiData['name'] ?? 'Unknown'}');
 
-      // Step 2: Backend Processing (validation + fallback)
-      Map<String, dynamic> backendData = {};
-      try {
-        backendData = await ApiService.processData(
-          rawText: ocrResult['text'] ?? '',
-          barcode: ocrResult['barcode'] ?? '',
-          category: 'medicine',
-          geminiData: geminiData,
-        );
-        LoggerService.success('BACKEND_PROCESS', 'Backend validation completed');
-      } catch (e) {
-        LoggerService.warning('BACKEND_FALLBACK', 'Backend processing failed, using Gemini data: $e');
-        backendData = geminiData; // Fallback to Gemini data
-      }
-
-      // Step 3: Use backend-validated data (or Gemini fallback)
-      final finalData = backendData.isNotEmpty ? backendData : geminiData;
+      // Step 2: Use Gemini data directly (backend removed)
+      final finalData = geminiData;
       
-      // Step 4: Navigate to Preview Screen
+      // Step 3: Navigate to Preview Screen
       if (mounted) {
         final result = await Navigator.of(context).push(
           MaterialPageRoute(

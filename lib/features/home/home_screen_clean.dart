@@ -323,12 +323,7 @@ class HomeScreenClean extends StatelessWidget {
       ),
     );
     
-    // Reload if item was saved
-    if (result == true && mounted) {
-      setState(() {
-        // Trigger rebuild to refresh any displayed data
-      });
-    }
+    // No need to reload for StatelessWidget
   }
 
   void _navigateToImageCapture(BuildContext context, bool isMedicine) {
