@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../data/database/app_database.dart';
 import '../../models/product_info.dart';
 import '../../core/services/database_service.dart';
 
@@ -51,37 +50,34 @@ class _ExpiryTimelineScreenState extends State<ExpiryTimelineScreen> {
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final weekFromNow = today.subtract(const Duration(days: 7));
-    final monthFromNow = DateTime(now.year, now.month, 1);
+    final weekFromNow = today.add(const Duration(days: 7)); // Fixed: add instead of subtract
+    final monthEnd = DateTime(now.year, now.month + 1, 0); // Last day of current month
 
     // Group items by time periods
     final todayItems = _allItems.where((item) {
       if (item.expiryDate == null) return false;
-      final expiryDate = item.expiryDate!;
-      return expiryDate.year == today.year &&
-             expiryDate.month == today.month &&
-             expiryDate.day == today.day;
+      final expiryDate = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+      return expiryDate.isAtSameMomentAs(today);
     }).toList();
 
     final weekItems = _allItems.where((item) {
       if (item.expiryDate == null) return false;
-      final expiryDate = item.expiryDate!;
-      return !expiryDate.isBefore(today) && 
-             expiryDate.isBefore(weekFromNow) &&
-             expiryDate.isAfter(today);
+      final expiryDate = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+      return expiryDate.isAfter(today) && 
+             expiryDate.isBefore(weekFromNow.add(const Duration(days: 1)));
     }).toList();
 
     final monthItems = _allItems.where((item) {
       if (item.expiryDate == null) return false;
-      final expiryDate = item.expiryDate!;
-      return !expiryDate.isBefore(monthFromNow) && 
-             expiryDate.isAfter(monthFromNow);
+      final expiryDate = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+      return expiryDate.isAfter(weekFromNow) && 
+             expiryDate.isBefore(monthEnd.add(const Duration(days: 1)));
     }).toList();
 
     final laterItems = _allItems.where((item) {
       if (item.expiryDate == null) return false;
-      final expiryDate = item.expiryDate!;
-      return expiryDate.isAfter(monthFromNow);
+      final expiryDate = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+      return expiryDate.isAfter(monthEnd);
     }).toList();
 
     return Scaffold(

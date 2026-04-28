@@ -907,6 +907,30 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
           .replaceAll('.', '/')
           .replaceAll('-', '/');
 
+      // Handle DDMMMYY format (e.g., "04APR26", "03AUG26")
+      final ddmmmyyPattern = RegExp(r'^(\d{2})([A-Z]{3})(\d{2})$', caseSensitive: false);
+      final ddmmmyyMatch = ddmmmyyPattern.firstMatch(dateString.trim().toUpperCase());
+      if (ddmmmyyMatch != null) {
+        final day = int.parse(ddmmmyyMatch.group(1)!);
+        final monthStr = ddmmmyyMatch.group(2)!.toUpperCase();
+        int year = int.parse(ddmmmyyMatch.group(3)!);
+        
+        // Expand 2-digit year: 00-49 → 2000-2049, 50-99 → 1950-1999
+        year = year < 50 ? 2000 + year : 1900 + year;
+        
+        // Convert month abbreviation to number
+        final monthMap = {
+          'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+          'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
+        };
+        
+        final month = monthMap[monthStr];
+        if (month != null) {
+          print('Parsed DDMMMYY format: $dateString -> $day/$month/$year');
+          return DateTime(year, month, day);
+        }
+      }
+
       if (normalized.contains('/')) {
         final parts = normalized.split('/');
 
@@ -943,6 +967,7 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
 
       return DateTime.parse(normalized);
     } catch (e) {
+      print('Failed to parse date "$dateString": $e');
       return null;
     }
   }
@@ -1399,9 +1424,9 @@ class _ManualProductEntryScreenState extends State<ManualProductEntryScreen> {
         warnings: _notesController.text.trim(),
         expiryDate: _expiryDate!,
         mfgDate: _manufacturingDate,
-        imageUrl: _selectedImages.isNotEmpty
-            ? _selectedImages.first.path
-            : null,
+        imageUrl: ProductInfo.encodeImageUrls(
+          _selectedImages.map((f) => f.path).toList(),
+        ),
         source: 'manual_entry',
       );
 

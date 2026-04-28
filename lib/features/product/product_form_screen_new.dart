@@ -5,6 +5,7 @@ import '../../models/product_info.dart';
 import '../../data/repositories/medicine_repository.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../data/database/app_database.dart';
+import '../../core/services/notification_service.dart';
 
 /// Clean Product Form Screen with Sections
 class ProductFormScreenNew extends StatefulWidget {
@@ -53,6 +54,23 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
   void initState() {
     super.initState();
     _isMedicine = widget.isMedicine;
+    
+    // Load existing images immediately if editing
+    if (widget.existingItem != null && widget.existingItem!.imageUrl != null && widget.existingItem!.imageUrl!.isNotEmpty) {
+      final imageUrls = widget.existingItem!.imageUrls;
+      _capturedImages = imageUrls
+          .map((path) => File(path))
+          .where((file) => file.existsSync())
+          .toList();
+      print('Loaded ${_capturedImages.length} existing images in initState');
+    }
+    
+    // Load captured images from widget if provided
+    if (widget.capturedImages != null && widget.capturedImages!.isNotEmpty) {
+      _capturedImages.addAll(widget.capturedImages!);
+      print('Added ${widget.capturedImages!.length} captured images from widget');
+    }
+    
     _initializeDatabase();
   }
 
@@ -82,11 +100,7 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       _sideEffectsController.text = item.sideEffects ?? '';
       _ingredientsController.text = item.ingredients ?? '';
       _nutritionController.text = item.nutritionInfo ?? '';
-
-      // Load existing image if available
-      if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
-        _capturedImages = [File(item.imageUrl!)];
-      }
+      _isMedicine = item.category?.toLowerCase().contains('medicine') ?? false;
     });
   }
 
@@ -138,6 +152,19 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       _ingredientsController.text = product.ingredients ?? '';
       _nutritionController.text = product.nutritionInfo ?? '';
       _isMedicine = product.isMedicine;
+      
+      // Load existing images from productInfo
+      if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
+        final imageUrls = product.imageUrls;
+        final existingImages = imageUrls
+            .map((path) => File(path))
+            .where((file) => file.existsSync())
+            .toList();
+        if (existingImages.isNotEmpty && _capturedImages.isEmpty) {
+          _capturedImages = existingImages;
+          print('Loaded ${_capturedImages.length} existing images from productInfo');
+        }
+      }
 
       // Debug logging for existing product
       print('=== EDITING EXISTING PRODUCT ===');
@@ -146,6 +173,7 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       print('Expiry: ${_expiryDateController.text}');
       print('MFG: ${_mfgDateController.text}');
       print('Is Medicine: $_isMedicine');
+      print('Images: ${_capturedImages.length}');
       print('================================');
     } else if (widget.analysisData != null) {
       final parsedData =
@@ -188,6 +216,12 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       print('Is Medicine: $_isMedicine');
       print('Confidence: ${parsedData['confidence']}');
       print('======================');
+    }
+    
+    // Load captured images from widget if provided (for new items from scan)
+    if (widget.capturedImages != null && widget.capturedImages!.isNotEmpty && _capturedImages.isEmpty) {
+      _capturedImages = List.from(widget.capturedImages!);
+      print('Loaded ${_capturedImages.length} captured images from widget');
     }
 
     // Force UI update
@@ -947,16 +981,16 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       }
       print('=== REPOSITORY SAVE COMPLETE ===');
 
-      // Schedule expiry notifications (temporarily disabled)
-      // try {
-      //   final notificationService = NotificationService();
-      //   await notificationService.scheduleExpiryNotifications(productInfo);
-      //   print('=== NOTIFICATIONS SCHEDULED ===');
-      //   print('Scheduled notifications for: ${productInfo.name}');
-      // } catch (e) {
-      //   print('=== NOTIFICATION ERROR ===');
-      //   print('Failed to schedule notifications: $e');
-      // }
+      // Schedule expiry notifications
+      try {
+        final notificationService = NotificationService();
+        await notificationService.scheduleExpiryNotifications(productInfo);
+        print('=== NOTIFICATIONS SCHEDULED ===');
+        print('Scheduled notifications for: ${productInfo.name}');
+      } catch (e) {
+        print('=== NOTIFICATION ERROR ===');
+        print('Failed to schedule notifications: $e');
+      }
 
       if (mounted) {
         Navigator.pop(context, true);

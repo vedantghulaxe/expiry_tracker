@@ -2,10 +2,153 @@ import 'package:flutter/material.dart';
 import '../product/product_form_screen_new.dart';
 import '../common/barcode_scanner_screen.dart';
 import '../common/image_capture_screen_real_ocr.dart';
+import '../../core/services/barcode_service.dart';
 
 /// Medicine Entry Method Screen
 class MedicineEntryMethodScreen extends StatelessWidget {
   const MedicineEntryMethodScreen({super.key});
+
+  /// Scan barcode and navigate to form with pre-filled data
+  Future<void> _scanBarcodeAndNavigate(BuildContext context) async {
+    // Open barcode scanner
+    final barcode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+
+    if (barcode == null || barcode.isEmpty) return;
+    if (!context.mounted) return;
+
+    // Show loading indicator while fetching medicine info
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Looking up medicine...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final productData = await BarcodeService.getProductInfo(barcode);
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // close loading dialog
+
+      // Check if we got meaningful data
+      final isBasicFallback = (productData['name']?.toString() ?? '').startsWith('Product (');
+      final hasExpiry = (productData['expiryDate']?.toString() ?? '').isNotEmpty;
+      final source = productData['source']?.toString() ?? '';
+
+      // Build analysisData in the format ProductFormScreenNew expects
+      final parsedData = <String, dynamic>{
+        'name': productData['name'] ?? '',
+        'brand': productData['brand'] ?? '',
+        'category': 'medicine',
+        'ingredients': productData['ingredients'] ?? '',
+        'dosage': productData['dosage'] ?? '',
+        'warnings': productData['warnings'] ?? '',
+        'uses': productData['uses'] ?? '',
+        'expiryDate': _normalizeDate(
+          productData['expiryDate']?.toString() ?? '',
+        ),
+        'mfgDate': _normalizeDate(productData['mfgDate']?.toString() ?? ''),
+        'isMedicine': true,
+        'confidence': productData['confidence'] ?? 0.5,
+        'source': productData['source'] ?? 'Barcode Scan',
+        'barcode': barcode,
+      };
+
+      final analysisData = <String, dynamic>{
+        'success': true,
+        'text': productData['name'] ?? 'Barcode: $barcode',
+        'raw_text': 'Barcode: $barcode',
+        'method': 'barcode',
+        'parsed_data': parsedData,
+        'barcode': barcode,
+      };
+
+      // Show warning if data is incomplete
+      if (isBasicFallback || !hasExpiry || source.contains('AI Lookup')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isBasicFallback
+                  ? 'Medicine not found in databases. Use Image Capture to scan the label.'
+                  : source.contains('AI Lookup')
+                      ? 'AI lookup incomplete. Use Image Capture for accurate details.'
+                      : 'Expiry date not found. Use Image Capture to scan the label.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Capture Image',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ImageCaptureScreenRealOCR(isMedicine: true),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductFormScreenNew(
+            isMedicine: true,
+            analysisData: analysisData,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to look up barcode: $e'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Capture Image',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ImageCaptureScreenRealOCR(isMedicine: true),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Normalize various date formats to DD/MM/YYYY for the form
+  String _normalizeDate(String raw) {
+    if (raw.isEmpty) return '';
+    // Already DD/MM/YYYY
+    if (RegExp(r'^\d{1,2}/\d{1,2}/\d{4}$').hasMatch(raw)) return raw;
+    // YYYY-MM-DD
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) {
+      final parts = raw.split('-');
+      return '${parts[2]}/${parts[1]}/${parts[0]}';
+    }
+    // MM/YYYY
+    if (RegExp(r'^\d{1,2}/\d{4}$').hasMatch(raw)) return raw;
+    return raw;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,12 +207,7 @@ class MedicineEntryMethodScreen extends StatelessWidget {
                     'Scan barcode to auto-fill details',
                     Icons.qr_code_scanner,
                     Colors.green,
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BarcodeScannerScreen(),
-                      ),
-                    ),
+                    () => _scanBarcodeAndNavigate(context),
                   ),
                   const SizedBox(height: 16),
                   _buildMethodCard(

@@ -238,7 +238,10 @@ class _InventoryScreenNewState extends State<InventoryScreenNew> with WidgetsBin
     final isExpired = _isItemExpired(item);
     final isExpiringSoon = _isItemExpiringSoon(item);
     final isMedicine = item is ProductInfo ? item.isMedicine : false;
-    final hasImage = item.imageUrl != null && item.imageUrl!.isNotEmpty && File(item.imageUrl!).existsSync();
+    
+    // Get first image from imageUrls list
+    final imageUrls = item is ProductInfo ? item.imageUrls : <String>[];
+    final hasImage = imageUrls.isNotEmpty && File(imageUrls.first).existsSync();
     
     Color statusColor;
     String statusText;
@@ -279,7 +282,7 @@ class _InventoryScreenNewState extends State<InventoryScreenNew> with WidgetsBin
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.file(
-                      File(item.imageUrl!),
+                      File(imageUrls.first), // Use first image from list
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(

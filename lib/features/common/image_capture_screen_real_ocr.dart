@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:expiry_tracker_app/services/multi_image_service_simple.dart';
-import 'package:expiry_tracker_app/features/product/manual_product_entry_screen.dart';
+import 'package:expiry_tracker_app/features/product/product_form_screen_new.dart';
 import 'package:expiry_tracker_app/core/services/logger_service.dart';
 import 'package:expiry_tracker_app/core/services/barcode_service.dart';
 import 'package:expiry_tracker_app/features/common/barcode_scanner_screen.dart';
@@ -1123,12 +1123,15 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
 
   void _proceedToForm() {
     if (_analysisResult != null) {
+      // Navigate to ProductFormScreenNew (same as barcode flow)
+      // This ensures medicines are saved to the correct database
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ManualProductEntryScreen(
+          builder: (context) => ProductFormScreenNew(
             isMedicine: widget.isMedicine,
             analysisData: _analysisResult,
+            capturedImages: _capturedImages,
           ),
         ),
       );
@@ -1136,12 +1139,13 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
   }
   
   void _proceedToManualEntry() {
+    // Navigate to ProductFormScreenNew for consistency
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ManualProductEntryScreen(
+        builder: (context) => ProductFormScreenNew(
           isMedicine: widget.isMedicine,
-          analysisData: null, // Manual entry - no analysis data
+          capturedImages: _capturedImages,
         ),
       ),
     );

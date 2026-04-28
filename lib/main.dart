@@ -7,11 +7,20 @@ import 'core/services/logger_service.dart';
 import 'core/services/simple_service_manager.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/biometric_service.dart';
+import 'core/services/notification_service.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize notification service
+  try {
+    await NotificationService().initialize();
+    LoggerService.success('MAIN', 'Notification service initialized');
+  } catch (e) {
+    LoggerService.error('MAIN', 'Failed to initialize notifications: $e');
+  }
 
   // We do NOT await initialization here to prevent the black screen freeze.
   // Initialization happens inside the app structure.

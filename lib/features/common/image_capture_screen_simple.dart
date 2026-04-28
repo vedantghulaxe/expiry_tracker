@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:expiry_tracker_app/features/product/manual_product_entry_screen.dart';
+import 'package:expiry_tracker_app/features/product/product_form_screen_new.dart';
 import 'package:expiry_tracker_app/services/multi_image_service_simple.dart';
 import 'package:expiry_tracker_app/core/services/barcode_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -367,9 +367,10 @@ class _ImageCaptureScreenSimpleState extends State<ImageCaptureScreenSimple> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ManualProductEntryScreen(
+                              builder: (context) => ProductFormScreenNew(
                                 isMedicine: widget.isMedicine,
                                 analysisData: _analysisResult,
+                                capturedImages: _capturedImages,
                               ),
                             ),
                           );

@@ -30,9 +30,20 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
   bool _isScanning = true;
   String? _lastScannedBarcode;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    print('=== BARCODE SCANNER INITIALIZED ===');
+    print('Camera facing: back');
+    print('Detection speed: normal');
+    print('Supported formats: EAN-13, EAN-8, UPC-A, UPC-E, Code128, Code39, Code93, ITF, Codabar, QR');
+  }
 
   @override
   void dispose() {
+    print('=== BARCODE SCANNER DISPOSED ===');
     _controller.dispose();
     super.dispose();
   }
@@ -57,6 +68,38 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onBarcodeDetected,
+            errorBuilder: (context, error, child) {
+              print('=== BARCODE SCANNER ERROR ===');
+              print('Error: $error');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Camera Error',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        error.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _showManualEntry,
+                      icon: const Icon(Icons.keyboard),
+                      label: const Text('Enter Barcode Manually'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
 
           // Scanner Overlay
@@ -185,13 +228,23 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (!_isScanning) return;
 
     final List<Barcode> barcodes = capture.barcodes;
+    
+    print('=== BARCODE SCANNER DEBUG ===');
+    print('Barcodes detected: ${barcodes.length}');
 
     for (final barcode in barcodes) {
+      print('Barcode type: ${barcode.type}');
+      print('Barcode format: ${barcode.format}');
+      print('Barcode raw value: ${barcode.rawValue}');
+      print('Barcode display value: ${barcode.displayValue}');
+      
       if (barcode.rawValue != null) {
         setState(() {
           _lastScannedBarcode = barcode.rawValue;
           _isScanning = false;
         });
+
+        print('✅ Barcode scanned successfully: ${barcode.rawValue}');
 
         // Auto-proceed after a short delay
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -201,7 +254,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         });
 
         break;
+      } else {
+        print('⚠️ Barcode detected but rawValue is null');
       }
+    }
+    
+    if (barcodes.isEmpty) {
+      print('⚠️ No barcodes in capture');
     }
   }
 

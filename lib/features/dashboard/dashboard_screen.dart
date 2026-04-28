@@ -3,14 +3,12 @@ import '../product/product_form_screen_new.dart';
 import '../inventory/inventory_screen_new.dart';
 import 'package:expiry_tracker_app/features/common/image_capture_screen_simple.dart';
 import '../settings/settings_screen.dart';
-import '../expiry_timeline/expiry_timeline_screen.dart';
 import 'expiry_summary_widget.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../data/repositories/medicine_repository.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/theme_service.dart';
 import '../../core/utils/expiry_insights.dart';
-import '../../data/database/app_database.dart';
 import '../../models/product_info.dart';
 import '../security/biometric_check_screen.dart';
 
@@ -476,62 +474,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: const Text('View All'),
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionCard(
-                'View Inventory',
-                Icons.inventory,
-                Colors.blue,
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InventoryScreenNew(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionCard(
-                'View Timeline',
-                Icons.timeline,
-                Colors.green,
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExpiryTimelineScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionCard(
-                'Expiry Calendar',
-                Icons.calendar_today,
-                Colors.orange,
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExpiryTimelineScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-                      ],
         ),
         const SizedBox(height: 16),
         
