@@ -12,7 +12,6 @@ import '../../core/services/theme_service.dart';
 import '../../core/utils/expiry_insights.dart';
 import '../../data/database/app_database.dart';
 import '../../models/product_info.dart';
-import '../batch/batch_processing_screen_simple.dart';
 import '../security/biometric_check_screen.dart';
 
 /// Unified Dashboard Screen
@@ -263,15 +262,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(
-              child: _buildActionCard(
-                'Batch Process',
-                Icons.analytics,
-                Colors.teal,
-                () => _navigateToBatchProcessing(context),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: _buildActionCard(
                 'Biometric Check',
@@ -703,15 +693,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => const InventoryScreenNew(),
-      ),
-    );
-  }
-
-  void _navigateToBatchProcessing(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const BatchProcessingScreen(),
       ),
     );
   }
