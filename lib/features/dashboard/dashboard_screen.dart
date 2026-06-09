@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../product/product_form_screen_new.dart';
 import '../inventory/inventory_screen_new.dart';
-import 'package:expiry_tracker_app/features/common/image_capture_screen_simple.dart';
+import 'package:expiry_tracker_app/features/common/image_capture_screen_real_ocr.dart';
 import '../settings/settings_screen.dart';
 import 'expiry_summary_widget.dart';
+import 'widgets/expiry_timeline_widget.dart';
+import 'expiry_timeline_screen.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../data/repositories/medicine_repository.dart';
 import '../../core/services/database_service.dart';
@@ -11,6 +13,7 @@ import '../../core/services/theme_service.dart';
 import '../../core/utils/expiry_insights.dart';
 import '../../models/product_info.dart';
 import '../security/biometric_check_screen.dart';
+import '../../data/database/app_database.dart';
 
 /// Unified Dashboard Screen
 /// Combines Home and Analytics functionality
@@ -183,7 +186,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     _buildQuickActionsSection(),
                     const SizedBox(height: 20),
-                    const ExpirySummaryWidget(),
+                    // Pass a key to force rebuild when data changes
+                    ExpirySummaryWidget(key: ValueKey(_isLoading)),
+                    const SizedBox(height: 20),
+                    // Expiry Timeline Widget
+                    FutureBuilder<List<Product>>(
+                      future: _productRepo.getAllProducts(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return ExpiryTimelineWidget(
+                            products: snapshot.data!,
+                            onPeriodTap: (period) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ExpiryTimelineScreen(
+                                    initialPeriod: period,
+                                  ),
+                                ),
+                              ).then((_) => _loadData());
+                            },
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                     const SizedBox(height: 20),
                     _buildRecentItemsSection(),
                     const SizedBox(height: 20),
@@ -602,32 +629,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     // Reload dashboard if item was saved
     if (result == true && mounted) {
+      print('=== ITEM SAVED, RELOADING DASHBOARD ===');
       _loadData();
     }
   }
 
-  void _navigateToScan(BuildContext context, bool isMedicine) {
-    // Navigate to image capture screen
-    Navigator.push(
+  void _navigateToScan(BuildContext context, bool isMedicine) async {
+    // Navigate to image capture screen with real OCR
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ImageCaptureScreenSimple(
+        builder: (context) => ImageCaptureScreenRealOCR(
           isMedicine: isMedicine,
         ),
       ),
     );
+    
+    // Reload dashboard if item was saved
+    if (result == true && mounted) {
+      print('=== ITEM SAVED FROM SCAN, RELOADING DASHBOARD ===');
+      _loadData();
+    }
   }
 
-  void _navigateToBarcodeScan(BuildContext context, bool isMedicine) {
+  void _navigateToBarcodeScan(BuildContext context, bool isMedicine) async {
     // Navigate to barcode scanning screen
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ImageCaptureScreenSimple(
+        builder: (context) => ImageCaptureScreenRealOCR(
           isMedicine: isMedicine,
         ),
       ),
     );
+    
+    // Reload dashboard if item was saved
+    if (result == true && mounted) {
+      _loadData();
+    }
   }
 
   void _navigateToInventory(String filterType) {

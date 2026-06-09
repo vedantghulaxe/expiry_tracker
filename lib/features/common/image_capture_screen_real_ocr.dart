@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:expiry_tracker_app/services/multi_image_service_simple.dart';
-import 'package:expiry_tracker_app/features/product/product_form_screen_new.dart';
+import 'package:expiry_tracker_app/features/product/manual_product_entry_screen.dart';
 import 'package:expiry_tracker_app/core/services/logger_service.dart';
 import 'package:expiry_tracker_app/core/services/barcode_service.dart';
 import 'package:expiry_tracker_app/features/common/barcode_scanner_screen.dart';
@@ -249,38 +249,42 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
   }
 
   Widget _buildAnalysisSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Step 2: Analysis Results',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          if (_isProcessing)
-            const Center(
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Processing images with OCR (Google ML Kit + Tesseract)...'),
-                ],
+    return Expanded(
+      child: SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Step 2: Analysis Results',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
               ),
-            )
-          else if (_errorMessage != null)
-            _buildErrorWidget()
-          else if (_analysisResult != null)
-            _buildResultsWidget()
-          else
-            _buildEmptyState(),
-        ],
+              const SizedBox(height: 16),
+              
+              if (_isProcessing)
+                const Center(
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Processing images with OCR (Google ML Kit + Tesseract)...'),
+                    ],
+                  ),
+                )
+              else if (_errorMessage != null)
+                _buildErrorWidget()
+              else if (_analysisResult != null)
+                _buildResultsWidget()
+              else
+                _buildEmptyState(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -503,6 +507,104 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
               ),
             ),
           ],
+          
+          const SizedBox(height: 16),
+          
+          // RAW EXTRACTED TEXT - ALWAYS SHOW PROMINENTLY AT TOP
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200, width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.text_snippet, color: Colors.blue.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Raw Extracted Text (OCR):',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(minHeight: 100),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Builder(
+                    builder: (context) {
+                      final rawText = result['raw_text']?.toString() ?? result['text']?.toString() ?? '';
+                      print('=== UI DISPLAY RAW TEXT ===');
+                      print('Raw text length: ${rawText.length}');
+                      print('Raw text content: ${rawText.substring(0, rawText.length > 200 ? 200 : rawText.length)}');
+                      print('==========================');
+                      
+                      return SelectableText(
+                        rawText.isEmpty ? 'No text extracted' : rawText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: rawText.isEmpty ? Colors.red : Colors.grey[800],
+                          height: 1.5,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if ((result['raw_text']?.toString() ?? result['text']?.toString() ?? '').length > 100)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Full Extracted Text'),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: SingleChildScrollView(
+                                child: SelectableText(
+                                  result['raw_text']?.toString() ?? result['text']?.toString() ?? '',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.fullscreen, size: 16),
+                      label: const Text('View Full Text'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           
           const SizedBox(height: 16),
           
@@ -929,10 +1031,18 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
           print('  $key: "$value"');
         });
         
+        print('=== 🔍 BEFORE SETTING _analysisResult ===');
+        print('result[raw_text]: ${result['raw_text']?.toString().length ?? 0} chars');
+        print('result[text]: ${result['text']?.toString().length ?? 0} chars');
+        print('Will store text: ${(result['raw_text']?.toString() ?? result['text']?.toString() ?? '').length} chars');
+        print('Text preview: ${(result['raw_text']?.toString() ?? result['text']?.toString() ?? '').substring(0, (result['raw_text']?.toString() ?? result['text']?.toString() ?? '').length > 100 ? 100 : (result['raw_text']?.toString() ?? result['text']?.toString() ?? '').length)}');
+        print('========================================');
+        
         setState(() {
           _analysisResult = {
             'success': result['success'] ?? false,
-            'text': result['raw_text']?.toString() ?? '',
+            'text': result['raw_text']?.toString() ?? result['text']?.toString() ?? '',
+            'raw_text': result['raw_text']?.toString() ?? result['text']?.toString() ?? '',
             'method': result['processing_method']?.toString() ?? 'unknown',
             'confidence': parsedData['confidence'] ?? 0.0,
             'word_count': result['raw_text']?.toString().split(' ').where((word) => word.isNotEmpty).length ?? 0,
@@ -950,6 +1060,15 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
         
         print('=== 🎉 ANALYSIS SUCCESSFUL ===');
         print('📝 Ready to proceed to form with parsed data');
+        print('📄 Raw text in result: ${result['raw_text']?.toString().length ?? 0} chars');
+        print('📄 Text in result: ${result['text']?.toString().length ?? 0} chars');
+        print('📄 Stored in _analysisResult[raw_text]: ${_analysisResult!['raw_text']?.toString().length ?? 0} chars');
+        print('📄 Stored in _analysisResult[text]: ${_analysisResult!['text']?.toString().length ?? 0} chars');
+        print('📋 First 200 chars: ${(_analysisResult!['raw_text']?.toString() ?? '').substring(0, (_analysisResult!['raw_text']?.toString().length ?? 0) > 200 ? 200 : (_analysisResult!['raw_text']?.toString().length ?? 0))}');
+        print('📊 Parsed data keys: ${parsedData.keys}');
+        print('📊 Parsed name: ${parsedData['name']}');
+        print('📊 Parsed expiry: ${parsedData['expiryDate']}');
+        print('📊 Parsed mfg: ${parsedData['mfgDate']}');
         
       } else {
         // Handle different scenarios but never show "Analysis Failed"
@@ -1123,15 +1242,12 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
 
   void _proceedToForm() {
     if (_analysisResult != null) {
-      // Navigate to ProductFormScreenNew (same as barcode flow)
-      // This ensures medicines are saved to the correct database
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ProductFormScreenNew(
+          builder: (context) => ManualProductEntryScreen(
             isMedicine: widget.isMedicine,
             analysisData: _analysisResult,
-            capturedImages: _capturedImages,
           ),
         ),
       );
@@ -1139,13 +1255,12 @@ class _ImageCaptureScreenRealOCRState extends State<ImageCaptureScreenRealOCR> {
   }
   
   void _proceedToManualEntry() {
-    // Navigate to ProductFormScreenNew for consistency
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProductFormScreenNew(
+        builder: (context) => ManualProductEntryScreen(
           isMedicine: widget.isMedicine,
-          capturedImages: _capturedImages,
+          analysisData: null, // Manual entry - no analysis data
         ),
       ),
     );

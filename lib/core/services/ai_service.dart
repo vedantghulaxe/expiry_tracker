@@ -6,18 +6,18 @@ import 'logger_service.dart';
 
 class AIService {
   /// Standardized extraction method for both products and medicines
-  /// Uses Oxlo.ai OpenAI-compatible Vision API with retry logic
+  /// Uses Groq API with Llama 3.2 Vision for ultra-fast, accurate extraction
   Future<Map<String, dynamic>> extractStructuredData({
     required String imagePath,
     String? rawText,
     String? barcode,
   }) async {
-    LoggerService.start('AI_PROCESS', 'Initializing Oxlo.ai Vision Engine');
+    LoggerService.start('AI_PROCESS', 'Initializing Groq AI Vision Engine (Llama 3.2)');
 
     final apiKey = ConfigService.oxloApiKey;
 
     if (apiKey.isEmpty) {
-      LoggerService.error('AI_PROCESS', 'Oxlo.ai API Key is empty!');
+      LoggerService.error('AI_PROCESS', 'Groq API Key is empty!');
       return _emptyResult();
     }
 
@@ -27,216 +27,64 @@ class AIService {
       try {
         LoggerService.info(
           'AI_PROCESS',
-          'Attempt $attempt of $maxRetries',
+          'Attempt $attempt of $maxRetries (Groq Llama 3.2)',
         );
 
         final imageBytes = await File(imagePath).readAsBytes();
         final base64Image = base64Encode(imageBytes);
 
-        final systemPrompt = '''### ROLE
-You are an expert AI for extracting product information from Indian product and medicine labels with 99% accuracy. Your job is to INTELLIGENTLY map text from the image to the correct form fields.
+        final systemPrompt = '''You are a TEXT CLEANING and DATE EXTRACTION specialist.
 
-### TASK
-Analyze the image and extract structured information. Use your AI intelligence to identify which text belongs to which field and populate the form correctly.
+YOUR ONLY JOB:
+1. Clean the OCR text (fix spacing, remove noise)
+2. Extract ONLY the expiry date and manufacturing date
 
-### INTELLIGENT FIELD MAPPING RULES
+CRITICAL RULES:
+- DO NOT generate product names
+- DO NOT generate brand names
+- DO NOT generate batch numbers
+- DO NOT generate MRP/price
+- DO NOT generate ingredients
+- DO NOT add any information not in the OCR text
+- ONLY clean the text and find dates
 
-#### 1. PRODUCT NAME (name field)
-- **What to look for**: The LARGEST, most prominent text on the label
-- **Usually**: First line, bold text, brand name + product type
-- **Examples**: 
-  - "Crocin 500mg" ✅
-  - "Parle-G Gold Biscuits" ✅
-  - "Himalaya Face Wash" ✅
-  - "Dolo 650 Tablet" ✅
-- **NOT**: Manufacturer name, batch number, dates, prices
-- **Field**: `name`
+DATE EXTRACTION RULES:
+- Look for patterns like: DD/MM/YYYY, MM/YYYY, DD-MM-YYYY
+- Keywords for expiry: EXP, EXPIRY, BEST BEFORE, USE BY, USE BEFORE
+- Keywords for manufacturing: MFG, MFD, PKD, MANUFACTURED, PRODUCTION DATE
+- Convert dates to YYYY-MM-DD format if possible
+- If month/year only, use YYYY-MM format
+- If you cannot find a date, return empty string ""
 
-#### 2. BRAND/MANUFACTURER (brand field)
-- **What to look for**: Company name, often with "Pvt Ltd", "LLP", "Laboratories"
-- **Keywords**: "Manufactured by", "Marketed by", "Made by", "Mfg by"
-- **Examples**:
-  - "GSK Pharmaceuticals Ltd" ✅
-  - "Parle Products Pvt Ltd" ✅
-  - "Himalaya Drug Company" ✅
-- **Extract**: Just the company name without "Manufactured by" prefix
-- **Field**: `brand`
+EXAMPLE INPUT:
+"""
+PARACETAMOL 500MG
+MFG: 05/2023
+EXP: 04/2025
+BATCH: ABC123
+MRP: Rs. 50
+"""
 
-#### 3. EXPIRY DATE (expiry field)
-- **What to look for**: Date near "EXP", "EXPIRY", "BEST BEFORE", "USE BY", "USE BEFORE"
-- **Common formats on Indian labels**:
-  - **DDMMMYY**: "04APR26", "03AUG26", "15DEC25" (MOST COMMON)
-  - **DD/MM/YYYY**: "04/04/2026", "15/12/2025"
-  - **MM/YYYY**: "04/2026", "12/2025"
-  - **DD-MM-YYYY**: "04-04-2026"
-- **CRITICAL**: Extract EXACTLY as written, don't convert format
-- **Examples**:
-  - See "EXP: 04APR26" → Extract "04APR26" ✅
-  - See "Best Before: 04/2026" → Extract "04/2026" ✅
-  - See "Use By: 15/12/2025" → Extract "15/12/2025" ✅
-- **Field**: `expiry`
-
-#### 4. MANUFACTURING DATE (mfg_date field)
-- **What to look for**: Date near "MFG", "MFD", "PKD", "MANUFACTURED ON", "PACKED ON"
-- **Same formats as expiry date**
-- **Examples**:
-  - See "MFG: 04JAN26" → Extract "04JAN26" ✅
-  - See "PKD: 01/2026" → Extract "01/2026" ✅
-- **Field**: `mfg_date`
-
-#### 5. BATCH NUMBER (batch field)
-- **What to look for**: Alphanumeric code near "BATCH", "B.No", "LOT", "L.No"
-- **Examples**:
-  - "Batch No: B123" → Extract "B123" ✅
-  - "LOT: GC/1301" → Extract "GC/1301" ✅
-  - "B.No: 004J25" → Extract "004J25" ✅
-- **Field**: `batch`
-
-#### 6. INGREDIENTS/COMPOSITION (ingredients field)
-- **What to look for**: Text after "INGREDIENTS", "COMPOSITION", "CONTAINS", "ACTIVE INGREDIENTS"
-- **For medicines**: Active pharmaceutical ingredients with strength
-- **For products**: List of ingredients
-- **Examples**:
-  - "Paracetamol 500mg" ✅
-  - "Wheat Flour, Sugar, Salt" ✅
-- **Field**: `ingredients`
-
-#### 7. DOSAGE (dosage field - MEDICINES ONLY)
-- **What to look for**: Strength/dosage information
-- **Examples**:
-  - "500mg" ✅
-  - "650mg per tablet" ✅
-  - "10ml twice daily" ✅
-- **Field**: `dosage` (in extraData)
-
-#### 8. WARNINGS (warnings field - MEDICINES ONLY)
-- **What to look for**: Text after "WARNING", "CAUTION", "SIDE EFFECTS", "PRECAUTIONS"
-- **Examples**:
-  - "Do not exceed recommended dose" ✅
-  - "May cause drowsiness" ✅
-- **Field**: `warnings` (in extraData)
-
-#### 9. USES (uses field - MEDICINES ONLY)
-- **What to look for**: Text after "USES", "INDICATIONS", "FOR", "TREATS"
-- **Examples**:
-  - "For fever and pain relief" ✅
-  - "Treats cold and flu symptoms" ✅
-- **Field**: `uses` (in extraData)
-
-#### 10. CATEGORY DETECTION (category field)
-- **Medicine indicators**: tablet, capsule, syrup, injection, medicine, drug, pharmaceutical, dosage, prescription
-- **Product indicators**: food, beverage, cosmetic, personal care, household
-- **Auto-detect**: Based on visible text and context
-- **Field**: `category` (in extraData)
-
-### SMART CONTEXT AWARENESS
-Use your AI intelligence to understand relationships:
-- Text NEAR "EXP" → Expiry date
-- Text NEAR "MFG" → Manufacturing date  
-- LARGEST text → Product name
-- Text with "Ltd"/"Pvt" → Brand/Manufacturer
-- Numbers with "Rs"/"₹" → Price (MRP)
-- Text after "Batch" → Batch number
-- Text after "Ingredients" → Ingredients list
-
-### DATE FORMAT INTELLIGENCE
-**CRITICAL FOR INDIAN PRODUCTS**:
-- "04APR26" means April 4, 2026 (DD-MMM-YY format)
-- "03AUG26" means August 3, 2026
-- "15DEC25" means December 15, 2025
-- **DO NOT CONVERT** - Extract exactly as written!
-
-### OUTPUT FORMAT (STRICT JSON)
-Return ONLY this JSON structure, nothing else:
-
+EXAMPLE OUTPUT:
 {
-  "name": "product name (largest/prominent text)",
-  "brand": "brand/manufacturer name (company with Ltd/Pvt)",
-  "manufacturer": "full manufacturer name",
-  "mrp": "price with currency (if visible)",
-  "batch": "batch/lot number",
-  "expiry": "expiry date EXACTLY as written",
-  "mfg_date": "manufacturing date EXACTLY as written",
-  "ingredients": "ingredients or composition",
-  "quantity": "net weight/quantity with unit",
-  "extraData": {
-    "category": "medicine or product",
-    "dosage": "dosage (medicines only)",
-    "warnings": "warnings (medicines only)",
-    "uses": "uses/indications (medicines only)"
-  }
+  "raw_text": "PARACETAMOL 500MG\nMFG: 05/2023\nEXP: 04/2025\nBATCH: ABC123\nMRP: Rs. 50",
+  "mfg_date": "2023-05",
+  "expiry": "2025-04",
+  "name": "",
+  "brand": "",
+  "batch": "",
+  "mrp": "",
+  "ingredients": "",
+  "extraData": {}
 }
 
-### FIELD MAPPING EXAMPLES
-
-**Example 1: Medicine Label**
-Image shows:
-```
-CROCIN 500
-GSK Pharmaceuticals Ltd
-Paracetamol 500mg
-EXP: 04APR26
-MFG: 04JAN26
-Batch: B123
-For fever and pain relief
-```
-
-Correct mapping:
-```json
-{
-  "name": "CROCIN 500",
-  "brand": "GSK Pharmaceuticals Ltd",
-  "expiry": "04APR26",
-  "mfg_date": "04JAN26",
-  "batch": "B123",
-  "ingredients": "Paracetamol 500mg",
-  "extraData": {
-    "category": "medicine",
-    "dosage": "500mg",
-    "uses": "For fever and pain relief"
-  }
-}
-```
-
-**Example 2: Product Label**
-Image shows:
-```
-Parle-G Gold
-Parle Products Pvt Ltd
-Best Before: 12/2026
-Ingredients: Wheat Flour, Sugar
-Net Wt: 200g
-```
-
-Correct mapping:
-```json
-{
-  "name": "Parle-G Gold",
-  "brand": "Parle Products Pvt Ltd",
-  "expiry": "12/2026",
-  "ingredients": "Wheat Flour, Sugar",
-  "quantity": "200g",
-  "extraData": {
-    "category": "product"
-  }
-}
-```
-
-### IMPORTANT RULES
-1. ✅ Extract dates in ORIGINAL format (don't convert "04APR26")
-2. ✅ Use AI intelligence to map text to correct fields
-3. ✅ Return empty string "" only if field is truly not visible
-4. ✅ Understand context (text near keywords belongs to that field)
-5. ✅ Return ONLY valid JSON, no explanations, no markdown
-6. ✅ Be smart about which text goes in which field
-
-Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anything!''';
+RETURN ONLY JSON. NO OTHER TEXT.''';
 
         final userContent = <Map<String, dynamic>>[
           {
             'type': 'text',
             'text':
-                'Analyze this product/medicine label image and extract ALL visible information. Use your intelligence to identify which text belongs to which field (name, brand, dates, etc). OCR Hint: ${rawText ?? 'No hint'}. Barcode: ${barcode ?? 'None'}. Return ONLY the JSON object.',
+                'OCR TEXT TO CLEAN:\n"""${rawText ?? ""}"""\n\nYOUR TASK:\n1. Clean this OCR text (fix spacing, remove noise)\n2. Extract ONLY expiry date and manufacturing date\n3. DO NOT generate any other fields\n4. Return cleaned text in "raw_text" field\n5. Return dates in "expiry" and "mfg_date" fields\n\nReturn ONLY the JSON object.',
           },
           {
             'type': 'image_url',
@@ -261,7 +109,7 @@ Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anythin
                   {'role': 'user', 'content': userContent},
                 ],
                 'max_tokens': 1024,
-                'temperature': 0.1,
+                'temperature': 0.0, // Zero temperature for no creativity/hallucination
               }),
             )
             .timeout(ConfigService.apiTimeout);
@@ -272,7 +120,7 @@ Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anythin
               data['choices']?[0]?['message']?['content']?.toString() ?? '';
 
           if (aiText.isNotEmpty) {
-            LoggerService.success('AI_PROCESS', 'Oxlo.ai response received');
+            LoggerService.success('AI_PROCESS', 'Groq AI (Llama 3.2) response received');
             print("[AI_DEBUG] Raw Response: $aiText");
 
             String cleanJson = aiText
@@ -291,29 +139,29 @@ Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anythin
 
             final Map<String, dynamic> result = jsonDecode(cleanJson);
 
-            // Extract extraData fields if present
-            final extraData = result['extraData'] as Map<String, dynamic>? ?? {};
-            
+            // ONLY return cleaned text and dates - nothing else
             return {
-              "brand": result['brand'] ?? "",
-              "name": result['name'] ?? "",
-              "manufacturer": result['manufacturer'] ?? "",
-              "mrp": result['mrp'] ?? "",
-              "batch": result['batch'] ?? "",
+              "raw_text": result['raw_text'] ?? rawText ?? "",
               "expiry": result['expiry'] ?? "",
               "mfg_date": result['mfg_date'] ?? "",
-              "ingredients": result['ingredients'] ?? "",
-              "quantity": result['quantity'] ?? "",
-              "category": extraData['category'] ?? "",
-              "dosage": extraData['dosage'] ?? "",
-              "warnings": extraData['warnings'] ?? "",
-              "extraData": jsonEncode(extraData),
+              // All other fields empty - let local parser handle them
+              "brand": "",
+              "name": "",
+              "manufacturer": "",
+              "mrp": "",
+              "batch": "",
+              "ingredients": "",
+              "quantity": "",
+              "category": "",
+              "dosage": "",
+              "warnings": "",
+              "extraData": "{}",
             };
           }
         } else {
           LoggerService.error(
             'AI_PROCESS',
-            'Oxlo.ai HTTP Error: ${response.statusCode} - ${response.body}',
+            'Groq API HTTP Error: ${response.statusCode} - ${response.body}',
           );
           print(
               "[AI_DEBUG] HTTP Error: ${response.statusCode} - ${response.body}");
@@ -337,7 +185,7 @@ Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anythin
           continue;
         }
       } catch (e) {
-        LoggerService.error('AI_PROCESS', 'Oxlo.ai Error: $e');
+        LoggerService.error('AI_PROCESS', 'Groq API Error: $e');
         print("[AI_DEBUG] Exception Details: $e");
         if (attempt < maxRetries && e.toString().contains('connection')) {
           await Future.delayed(Duration(seconds: attempt * 2));
@@ -351,16 +199,17 @@ Your goal: Make the form auto-fill PERFECTLY so users don't need to edit anythin
   }
 
   /// Extract structured data from OCR text only (no image)
+  /// Uses Groq Llama 3.3 70B for text extraction
   Future<Map<String, dynamic>> extractFromText({
     required String ocrText,
     String? barcode,
   }) async {
-    LoggerService.start('AI_PROCESS', 'Initializing Oxlo.ai Text Extraction');
+    LoggerService.start('AI_PROCESS', 'Initializing Groq AI Text Extraction (Llama 3.3 70B)');
 
     final apiKey = ConfigService.oxloApiKey;
 
     if (apiKey.isEmpty) {
-      LoggerService.error('AI_PROCESS', 'Oxlo.ai API Key is empty!');
+      LoggerService.error('AI_PROCESS', 'Groq API Key is empty!');
       return _emptyResult();
     }
 
@@ -418,7 +267,7 @@ Return ONLY valid JSON, no explanations or markdown.''';
             data['choices']?[0]?['message']?['content']?.toString() ?? '';
 
         if (aiText.isNotEmpty) {
-          LoggerService.success('AI_PROCESS', 'Oxlo.ai text extraction received');
+          LoggerService.success('AI_PROCESS', 'Groq AI text extraction received');
           print("[AI_DEBUG] Text Response: $aiText");
 
           String cleanJson = aiText
@@ -451,11 +300,11 @@ Return ONLY valid JSON, no explanations or markdown.''';
       } else {
         LoggerService.error(
           'AI_PROCESS',
-          'Oxlo.ai HTTP Error: ${response.statusCode}',
+          'Groq API HTTP Error: ${response.statusCode}',
         );
       }
     } catch (e) {
-      LoggerService.error('AI_PROCESS', 'Oxlo.ai Text Error: $e');
+      LoggerService.error('AI_PROCESS', 'Groq API Text Error: $e');
     }
 
     return _emptyResult();
@@ -485,7 +334,7 @@ Return ONLY valid JSON, no explanations or markdown.''';
     if (data['expiry'].toString().isNotEmpty) count++;
 
     return {
-      "method": "Oxlo.ai Vision",
+      "method": "Groq AI (Llama 3.2 Vision)",
       "fields_found": count,
       "has_extra": data['extraData'] != "{}",
     };

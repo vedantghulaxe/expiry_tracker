@@ -96,64 +96,68 @@ class RobustOCRService {
   }
 
   /// STEP 2: ONLINE OCR (PRIMARY METHOD)
+  /// Uses ML Kit + AI for text cleaning and date extraction ONLY
   static Future<OCRResult> _performOnlineOCR(List<File> images) async {
     try {
       LoggerService.info(
         'ROBUST_OCR',
-        'Starting online OCR processing with Oxlo.ai APIs',
+        'Starting online OCR: ML Kit + AI (text cleaning & dates only)',
       );
 
-      // Process images and extract structured data
-      final allStructuredData = <Map<String, dynamic>>[];
-
+      // STEP 1: Extract raw text using ML Kit (reliable OCR)
+      final allTexts = <String>[];
       for (final image in images) {
-        final structuredData = await _extractStructuredDataWithGemini(image);
-        if (structuredData.isNotEmpty &&
-            (structuredData['name'].toString().isNotEmpty ||
-                structuredData['expiry_date'].toString().isNotEmpty)) {
-          allStructuredData.add(structuredData);
+        final text = await _extractTextWithMLKit(image);
+        if (text.isNotEmpty) {
+          allTexts.add(text);
         }
       }
 
-      if (allStructuredData.isEmpty) {
+      final rawText = _combineAndCleanText(allTexts);
+      
+      if (rawText.isEmpty || rawText.length < 10) {
         return OCRResult(
           success: false,
           text: '',
           confidence: 0.0,
-          method: 'online',
+          method: 'mlkit',
           imageCount: images.length,
-          warning: 'Online OCR returned no structured data',
+          warning: 'No text extracted from images',
         );
       }
 
-      // Combine data from multiple images (use the one with highest confidence)
-      final bestResult = allStructuredData.reduce(
-        (a, b) => (a['confidence'] as num) > (b['confidence'] as num) ? a : b,
-      );
+      LoggerService.info('ROBUST_OCR', 'ML Kit extracted ${rawText.length} characters');
+      print('=== RAW ML KIT TEXT ===');
+      print(rawText);
+      print('======================');
 
-      // Convert to JSON string for storage/transmission
-      final jsonString = jsonEncode(bestResult);
+      // STEP 2: Use AI ONLY to clean text and extract dates
+      final cleanedData = await _cleanTextAndExtractDates(rawText, images[0]);
 
-      // Create a readable text representation
-      final textRepresentation = _formatStructuredDataAsText(bestResult);
-
-      final confidence = bestResult['confidence'] as num;
-
-      // Warn if confidence is low
-      String? warning;
-      if (confidence < 0.5) {
-        warning =
-            'Low confidence extraction. Please verify the extracted information.';
+      if (cleanedData.isEmpty || cleanedData['raw_text']?.toString().isEmpty == true) {
+        // Fallback: return raw text without AI cleaning
+        return OCRResult(
+          success: true,
+          text: rawText,
+          confidence: 0.75,
+          method: 'mlkit',
+          imageCount: images.length,
+          warning: 'AI cleaning failed, using raw OCR',
+        );
       }
+
+      // Use cleaned text and extracted dates
+      final cleanedText = cleanedData['raw_text']?.toString() ?? rawText;
+      final jsonString = jsonEncode(cleanedData);
 
       return OCRResult(
         success: true,
-        text: textRepresentation,
+        text: cleanedText,
         jsonData: jsonString,
-        confidence: confidence.toDouble(),
+        confidence: 0.85, // Higher confidence with AI cleaning
         method: 'online',
         imageCount: images.length,
-        warning: warning,
+        warning: null,
       );
     } catch (e) {
       LoggerService.error('ROBUST_OCR', 'Online OCR failed: $e');
@@ -161,16 +165,16 @@ class RobustOCRService {
         success: false,
         text: '',
         confidence: 0.0,
-        method: 'online',
+        method: 'mlkit',
         imageCount: images.length,
         warning: 'Online OCR error: ${e.toString()}',
       );
     }
   }
 
-  /// Extract structured data using Oxlo.ai via AIService
-  /// Returns properly formatted JSON with required fields: name, expiry_date, mfg_date, category
-  static Future<Map<String, dynamic>> _extractStructuredDataWithGemini(
+  /// Clean text and extract dates using AI (ONLY dates, nothing else)
+  static Future<Map<String, dynamic>> _cleanTextAndExtractDates(
+    String rawText,
     File image,
   ) async {
     try {
@@ -178,91 +182,102 @@ class RobustOCRService {
 
       LoggerService.info(
         'ROBUST_OCR',
-        'Calling Oxlo.ai for structured extraction',
+        'Using AI to clean text and extract dates ONLY',
       );
 
-      // Use structured data extraction from AIService
+      // Use AI service with raw text
       final result = await aiService
-          .extractStructuredData(imagePath: image.path)
+          .extractStructuredData(
+            imagePath: image.path,
+            rawText: rawText,
+          )
           .timeout(const Duration(seconds: 30));
 
-      // Map AIService result to required structure
-      final structuredData = {
+      // Return only cleaned text and dates
+      return {
+        'raw_text': result['raw_text']?.toString() ?? rawText,
+        'expiry': result['expiry']?.toString() ?? '',
+        'mfg_date': result['mfg_date']?.toString() ?? '',
+      };
+    } catch (e) {
+      LoggerService.error('ROBUST_OCR', 'AI cleaning failed: $e');
+      return {};
+    }
+  }
+
+  /// Clean and structure raw OCR text using AI
+  static Future<Map<String, dynamic>> _cleanAndStructureWithAI(
+    String rawText,
+    File image,
+  ) async {
+    try {
+      final aiService = AIService();
+
+      LoggerService.info(
+        'ROBUST_OCR',
+        'Using AI to clean and structure OCR text',
+      );
+
+      // Use AI service with raw text as hint
+      final result = await aiService
+          .extractStructuredData(
+            imagePath: image.path,
+            rawText: rawText,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      // Build structured data
+      final structuredData = <String, dynamic>{
         'name': result['name']?.toString() ?? '',
         'expiry_date': result['expiry']?.toString() ?? '',
-        'mfg_date':
-            result['mfg_date']?.toString() ?? '', // now a top-level field
-        'category': '', // will be inferred below
+        'mfg_date': result['mfg_date']?.toString() ?? '',
+        'category': '',
         'ingredients': result['ingredients']?.toString() ?? '',
         'manufacturer': result['manufacturer']?.toString() ?? '',
+        'brand': result['brand']?.toString() ?? '',
         'mrp': result['mrp']?.toString() ?? '',
         'batch': result['batch']?.toString() ?? '',
-        'raw_data': result,
+        'raw_text': result['raw_text']?.toString() ?? rawText, // Use AI-extracted text if available
       };
 
-      // Try to extract mfg_date, category and ingredients from extraData if available
-      if (result['extraData'] != null &&
-          result['extraData'].toString() != '{}') {
+      // Extract from extraData if available
+      if (result['extraData'] != null && result['extraData'].toString() != '{}') {
         try {
           final extraData = jsonDecode(result['extraData'].toString());
           if (extraData is Map) {
-            // Manufacturing date
-            final mfgRaw =
-                extraData['manufacturing_date']?.toString() ??
-                extraData['mfg_date']?.toString() ??
-                extraData['mfd']?.toString() ??
-                extraData['manufactured_date']?.toString() ??
-                '';
-            if (mfgRaw.isNotEmpty) structuredData['mfg_date'] = mfgRaw;
-
-            // Category
-            final catRaw = extraData['category']?.toString() ?? '';
-            if (catRaw.isNotEmpty) structuredData['category'] = catRaw;
-
-            // Ingredients / composition
-            final ingRaw =
-                extraData['ingredients']?.toString() ??
-                extraData['composition']?.toString() ??
-                extraData['contents']?.toString() ??
-                '';
-            if (ingRaw.isNotEmpty) structuredData['ingredients'] = ingRaw;
+            structuredData['category'] = extraData['category']?.toString() ?? '';
+            structuredData['dosage'] = extraData['dosage']?.toString() ?? '';
+            structuredData['warnings'] = extraData['warnings']?.toString() ?? '';
+            structuredData['uses'] = extraData['uses']?.toString() ?? '';
           }
         } catch (e) {
           LoggerService.warning('ROBUST_OCR', 'Failed to parse extraData: $e');
         }
       }
 
-      // Infer category from content
-      if (structuredData['category'].toString().isEmpty) {
-        final raw = jsonEncode(result).toLowerCase();
-        if (raw.contains('tablet') ||
-            raw.contains('capsule') ||
-            raw.contains('medicine') ||
-            raw.contains('pharma') ||
-            raw.contains('dosage')) {
-          structuredData['category'] = 'medicine';
-        } else {
-          structuredData['category'] = 'product';
-        }
-      }
-
       // Calculate confidence based on filled fields
       final totalFields = 9;
-      final filledFields = structuredData.values.where((v) => v != null && v.toString().isNotEmpty).length;
-      structuredData['confidence'] = filledFields / totalFields;
-
-      LoggerService.info('ROBUST_OCR', 'AI extracted: name="${structuredData['name']}", expiry="${structuredData['expiry_date']}", brand="${structuredData['brand']}"');
+      final filledFields = structuredData.values
+          .where((v) => v != null && v.toString().isNotEmpty && v != rawText)
+          .length;
+      final confidenceValue = filledFields / totalFields;
+      structuredData['confidence'] = confidenceValue;
 
       LoggerService.success(
         'ROBUST_OCR',
-        'Oxlo.ai extraction successful. Confidence: ${structuredData['confidence']}',
+        'AI cleaning successful. Confidence: ${structuredData['confidence']}',
       );
+      
+      print('=== AI CLEANED DATA ===');
+      print('Name: ${structuredData['name']}');
+      print('Expiry: ${structuredData['expiry_date']}');
+      print('Brand: ${structuredData['brand']}');
+      print('Confidence: ${structuredData['confidence']}');
+      print('======================');
+
       return structuredData;
     } catch (e) {
-      LoggerService.error(
-        'ROBUST_OCR',
-        'Oxlo.ai extraction failed or timed out: $e',
-      );
+      LoggerService.error('ROBUST_OCR', 'AI cleaning failed: $e');
       return {};
     }
   }
@@ -365,7 +380,23 @@ class RobustOCRService {
       );
       await textRecognizer.close();
 
-      return recognizedText.text;
+      // Extract all text blocks with better formatting
+      final StringBuffer buffer = StringBuffer();
+      
+      for (final block in recognizedText.blocks) {
+        for (final line in block.lines) {
+          buffer.writeln(line.text);
+        }
+      }
+
+      final extractedText = buffer.toString().trim();
+      
+      print('=== ML KIT EXTRACTION ===');
+      print('Extracted ${extractedText.length} characters');
+      print('Text: $extractedText');
+      print('========================');
+
+      return extractedText;
     } catch (e) {
       LoggerService.error('ROBUST_OCR', 'ML Kit extraction failed: $e');
       return '';
@@ -474,10 +505,16 @@ class RobustOCRService {
     if (texts.isEmpty) return '';
 
     // Combine all texts
-    final combined = texts.join('\n');
+    final combined = texts.join('\n\n');
+
+    // Clean up common OCR errors
+    String cleaned = combined
+        .replaceAll(RegExp(r'\s+'), ' ') // Normalize whitespace
+        .replaceAll(RegExp(r'[\r\n]+'), '\n') // Normalize line breaks
+        .trim();
 
     // Remove duplicates while preserving order
-    final lines = combined.split('\n');
+    final lines = cleaned.split('\n');
     final seenLines = <String>{};
     final uniqueLines = <String>[];
 
@@ -489,7 +526,16 @@ class RobustOCRService {
       }
     }
 
-    return uniqueLines.join('\n');
+    final result = uniqueLines.join('\n');
+    
+    print('=== TEXT CLEANING ===');
+    print('Input texts: ${texts.length}');
+    print('Combined length: ${combined.length}');
+    print('Cleaned length: ${result.length}');
+    print('Unique lines: ${uniqueLines.length}');
+    print('====================');
+
+    return result;
   }
 
   /// STEP 4: FINAL FALLBACK - Never return empty result

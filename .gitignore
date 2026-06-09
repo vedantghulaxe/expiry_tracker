@@ -48,3 +48,28 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ========================================
+# SECURITY: Keystore and Signing Files
+# ========================================
+# NEVER commit these files to version control!
+*.jks
+*.keystore
+android/key.properties
+android/app/key.properties
+**/key.properties
+expiry-tracker-release.jks
+upload-keystore.jks
+
+# API Keys and Secrets
+.env
+.env.local
+.env.production
+secrets.json
+google-services.json
+firebase_options.dart
+
+# Backup files
+*.bak
+*.backup
+*~

@@ -36,6 +36,8 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
   final _brandController = TextEditingController();
   final _expiryDateController = TextEditingController();
   final _mfgDateController = TextEditingController();
+  final _batchController = TextEditingController();
+  final _priceController = TextEditingController();
   final _dosageController = TextEditingController();
   final _warningsController = TextEditingController();
   final _usesController = TextEditingController();
@@ -130,6 +132,8 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
     _brandController.dispose();
     _expiryDateController.dispose();
     _mfgDateController.dispose();
+    _batchController.dispose();
+    _priceController.dispose();
     _dosageController.dispose();
     _warningsController.dispose();
     _usesController.dispose();
@@ -177,42 +181,97 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       print('================================');
     } else if (widget.analysisData != null) {
       final parsedData =
-          widget.analysisData!['parsed_data'] as Map<String, dynamic>;
+          widget.analysisData!['parsed_data'] as Map<String, dynamic>? ?? {};
+
+      print('=== ANALYSIS DATA RECEIVED ===');
+      print('Full analysisData: ${widget.analysisData}');
+      print('Parsed data: $parsedData');
+      print('Raw text: ${widget.analysisData!['raw_text']}');
+      print('Text: ${widget.analysisData!['text']}');
+      print('');
+      print('=== ALL PARSED DATA FIELDS ===');
+      parsedData.forEach((key, value) {
+        print('  $key: "$value"');
+      });
+      print('==============================');
 
       // Validate parsed data before assigning
       final name = _validateAndCleanText(parsedData['name']);
       final brand = _validateAndCleanText(parsedData['brand']);
-      final expiryDate = _validateAndCleanText(parsedData['expiryDate']);
-      final mfgDate = _validateAndCleanText(parsedData['mfgDate']);
+      
+      // Try multiple possible field names for expiry date
+      final expiryDate = _validateAndCleanText(
+        parsedData['expiryDate'] ?? 
+        parsedData['expiry_date'] ?? 
+        parsedData['expiry'] ?? 
+        parsedData['exp'] ?? 
+        parsedData['best_before'] ??
+        parsedData['use_by'] ?? ''
+      );
+      
+      // Try multiple possible field names for mfg date
+      final mfgDate = _validateAndCleanText(
+        parsedData['mfgDate'] ?? 
+        parsedData['mfg_date'] ?? 
+        parsedData['mfd'] ?? 
+        parsedData['manufacturing_date'] ?? 
+        parsedData['manufactured'] ??
+        parsedData['pkd'] ?? ''
+      );
+      
+      // Try multiple possible field names for batch
+      final batch = _validateAndCleanText(
+        parsedData['batch'] ?? 
+        parsedData['batch_number'] ?? 
+        parsedData['lot'] ?? 
+        parsedData['lot_number'] ?? ''
+      );
+      
       final dosage = _validateAndCleanText(parsedData['dosage']);
       final warnings = _validateAndCleanText(parsedData['warnings']);
       final uses = _validateAndCleanText(parsedData['uses']);
       final ingredients = _validateAndCleanText(parsedData['ingredients']);
-      final nutritionInfo = _validateAndCleanText(parsedData['nutritionInfo']);
+      final nutritionInfo = _validateAndCleanText(parsedData['nutritionInfo'] ?? parsedData['nutrition']);
+      final mrp = _validateAndCleanText(parsedData['mrp'] ?? parsedData['price']);
 
       // Assign validated values
       _nameController.text = name;
       _brandController.text = brand;
       _expiryDateController.text = expiryDate;
       _mfgDateController.text = mfgDate;
+      _batchController.text = batch;
       _dosageController.text = dosage;
       _warningsController.text = warnings;
       _usesController.text = uses;
       _ingredientsController.text = ingredients;
       _nutritionController.text = nutritionInfo;
-      _isMedicine = parsedData['isMedicine'] ?? false;
+      _priceController.text = mrp;
+      
+      // Determine if medicine based on category or isMedicine flag
+      final category = parsedData['category']?.toString().toLowerCase() ?? '';
+      _isMedicine = parsedData['isMedicine'] == true || 
+                    category.contains('medicine') || 
+                    category.contains('tablet') || 
+                    category.contains('capsule') ||
+                    category.contains('syrup') ||
+                    widget.isMedicine;
 
       // Debug logging for auto-fill
       print('=== AUTO-FILL DEBUG ===');
+      print('Raw analysisData keys: ${widget.analysisData!.keys}');
+      print('Parsed data keys: ${parsedData.keys}');
       print('Name: "$name"');
       print('Brand: "$brand"');
       print('Expiry: "$expiryDate"');
       print('MFG: "$mfgDate"');
+      print('Batch: "$batch"');
       print('Dosage: "$dosage"');
       print('Ingredients: "$ingredients"');
       print('Uses: "$uses"');
       print('Warnings: "$warnings"');
       print('Nutrition: "$nutritionInfo"');
+      print('MRP: "$mrp"');
+      print('Category: "$category"');
       print('Is Medicine: $_isMedicine');
       print('Confidence: ${parsedData['confidence']}');
       print('======================');
@@ -294,20 +353,18 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
     if (value == null) return '';
     String text = value.toString().trim();
 
-    // Remove common OCR errors and clean up
-    text = text
-        .replaceAll(
-          RegExp(r'[^\w\s\-\./\d%,]'),
-          '',
-        ) // Keep only valid characters
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
-        .trim();
+    // Don't clean if empty
+    if (text.isEmpty) return '';
 
-    // Validate that it's meaningful text
+    // Remove excessive whitespace but keep the text structure
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // Only remove truly invalid characters (control characters, etc.)
+    // Keep alphanumeric, spaces, common punctuation, and special chars used in product names
+    text = text.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ''); // Remove control characters
+
+    // Validate minimum length
     if (text.length < 2) return '';
-    if (RegExp(r'^\d+$').hasMatch(text)) return ''; // Pure numbers aren't names
-    if (RegExp(r'^[/\-\.]+$').hasMatch(text))
-      return ''; // Pure separators aren't names
 
     return text;
   }
@@ -993,7 +1050,8 @@ class _ProductFormScreenNewState extends State<ProductFormScreenNew> {
       }
 
       if (mounted) {
-        Navigator.pop(context, true);
+        print('=== SAVE SUCCESSFUL, RETURNING TRUE ===');
+        Navigator.pop(context, true); // Return true to indicate success
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

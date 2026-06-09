@@ -4,6 +4,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+// Load keystore properties
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.expirytracker.app"
     compileSdk = 36
@@ -29,10 +39,6 @@ android {
         versionName = "1.0.0"
 
         multiDexEnabled = true
-        
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
-        }
     }
 
     compileOptions {
@@ -45,6 +51,17 @@ android {
         noCompress("traineddata")
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.isNotEmpty()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     
     kotlinOptions {
         jvmTarget = "17"
@@ -52,10 +69,25 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
-            // Temporarily disable shrinking for compatibility
+            // Use release signing if available, otherwise use debug
+            signingConfig = if (keystoreProperties.isNotEmpty()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            
+            // Disable shrinking for now to avoid compatibility issues
+            // Enable later for smaller APK size
             isMinifyEnabled = false
             isShrinkResources = false
+            
+            // Uncomment below to enable code shrinking (reduces APK size by ~20%)
+            // isMinifyEnabled = true
+            // isShrinkResources = true
+            // proguardFiles(
+            //     getDefaultProguardFile("proguard-android-optimize.txt"),
+            //     "proguard-rules.pro"
+            // )
         }
         
         getByName("debug") {

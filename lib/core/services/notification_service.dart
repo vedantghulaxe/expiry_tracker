@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -172,6 +173,8 @@ class NotificationService {
       final scheduledTz = tz.TZDateTime.from(notificationTime, tz.local);
 
       // Android notification details
+      final Color notificationColor = isMedicine ? const Color(0xFFFF5252) : const Color(0xFF2196F3);
+      
       final androidDetails = AndroidNotificationDetails(
         isMedicine ? 'medicine_expiry' : 'product_expiry',
         isMedicine ? 'Medicine Expiry Alerts' : 'Product Expiry Alerts',
@@ -181,7 +184,7 @@ class NotificationService {
         importance: _getImportance(priority),
         priority: _getPriority(priority),
         icon: '@mipmap/ic_launcher',
-        color: isMedicine ? const Color(0xFFFF5252) : const Color(0xFF2196F3),
+        color: notificationColor,
         playSound: true,
         enableVibration: true,
         styleInformation: BigTextStyleInformation(body),
@@ -227,6 +230,8 @@ class NotificationService {
     }
 
     try {
+      final Color notificationColor = isMedicine ? const Color(0xFFFF5252) : const Color(0xFF2196F3);
+      
       final androidDetails = AndroidNotificationDetails(
         isMedicine ? 'medicine_expiry' : 'product_expiry',
         isMedicine ? 'Medicine Expiry Alerts' : 'Product Expiry Alerts',
@@ -236,7 +241,7 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
-        color: isMedicine ? const Color(0xFFFF5252) : const Color(0xFF2196F3),
+        color: notificationColor,
         playSound: true,
         enableVibration: true,
         styleInformation: BigTextStyleInformation(body),

@@ -17,8 +17,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     formats: [
       BarcodeFormat.ean13,
       BarcodeFormat.ean8,
-      BarcodeFormat.upca,
-      BarcodeFormat.upce,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
       BarcodeFormat.code128,
       BarcodeFormat.code39,
       BarcodeFormat.code93,

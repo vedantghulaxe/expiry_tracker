@@ -134,40 +134,42 @@ class MultiImageServiceSimple {
         parsedWrapper['parsed_data'] as Map<String, dynamic>? ?? {},
       );
 
-      // Merge structured Gemini output when available.
+      // Merge structured data from AI (ONLY dates - everything else from local parser)
       if (ocrResult.structuredData != null) {
         final structured = ocrResult.structuredData!;
-        parsedData['name'] = _firstNonEmpty([
-          structured['name']?.toString(),
-          parsedData['name']?.toString(),
-        ]);
-        parsedData['expiryDate'] = _firstNonEmpty([
-          structured['expiry_date']?.toString(),
-          structured['expiryDate']?.toString(),
-          parsedData['expiryDate']?.toString(),
-        ]);
-        parsedData['mfgDate'] = _firstNonEmpty([
-          structured['mfg_date']?.toString(),
-          structured['mfgDate']?.toString(),
-          parsedData['mfgDate']?.toString(),
-        ]);
-        parsedData['category'] = _firstNonEmpty([
-          structured['category']?.toString(),
-          parsedData['category']?.toString(),
-        ]);
-        parsedData['ingredients'] = _firstNonEmpty([
-          structured['ingredients']?.toString(),
-          parsedData['ingredients']?.toString(),
-        ]);
-        // Also capture manufacturer as brand if brand is empty
-        parsedData['brand'] = _firstNonEmpty([
-          structured['manufacturer']?.toString(),
-          parsedData['brand']?.toString(),
-        ]);
+        
+        print('=== AI CLEANED DATA (DATES ONLY) ===');
+        print('Cleaned text length: ${structured['raw_text']?.toString().length ?? 0}');
+        print('Expiry: ${structured['expiry']}');
+        print('MFG: ${structured['mfg_date']}');
+        print('====================================');
+        
+        // Use AI-cleaned text if available
+        final aiRawText = structured['raw_text']?.toString() ?? '';
+        if (aiRawText.isNotEmpty) {
+          parsedData['rawText'] = aiRawText;
+        }
+        
+        // Use AI-extracted dates (ONLY if they exist)
+        if (structured['expiry']?.toString().isNotEmpty == true) {
+          parsedData['expiryDate'] = structured['expiry'].toString();
+        }
+        if (structured['mfg_date']?.toString().isNotEmpty == true) {
+          parsedData['mfgDate'] = structured['mfg_date'].toString();
+        }
+        
+        print('=== DATES MERGED FROM AI ===');
+        print('Expiry: ${parsedData['expiryDate']}');
+        print('MFG: ${parsedData['mfgDate']}');
+        print('============================');
+      } else {
+        print('=== NO AI DATA - USING LOCAL PARSER ONLY ===');
       }
 
-      // Ensure essential fields
-      parsedData['rawText'] = ocrResult.text;
+      // Ensure essential fields (but don't overwrite AI-cleaned text)
+      if (parsedData['rawText'] == null || parsedData['rawText'].toString().isEmpty) {
+        parsedData['rawText'] = ocrResult.text;
+      }
       parsedData['ocrMethod'] = ocrResult.method;
       parsedData['ocrConfidence'] = ocrResult.confidence;
       parsedData['ocrWarning'] = ocrResult.warning;
@@ -180,43 +182,60 @@ class MultiImageServiceSimple {
       final isValidOCR = _validateOCRResult(ocrResult, parsedData);
 
       // STEP 4: BUILD RESULT
+      // Ensure raw_text is always set (prioritize AI-extracted text)
+      final finalRawText = parsedData['rawText']?.toString() ?? ocrResult.text;
+      
+      // Extract image paths for form population
+      final imagePaths = validImages.map((img) => img.path).toList();
+      
       var result = {
         'success': isValidOCR,
         'parsed_data': parsedData,
-        'text': ocrResult.text,
-        'raw_text': ocrResult.text,
+        'text': finalRawText,
+        'raw_text': finalRawText,
+        'image_paths': imagePaths,
         'image_count': validImages.length,
         'processing_method': 'robust_ocr',
         'ocr_method': ocrResult.method,
         'ocr_confidence': ocrResult.confidence,
         'confidence': parsedData['confidence'] ?? ocrResult.confidence,
-        'enhanced': ocrResult.method == 'online',
-        'ai_used': ocrResult.method == 'online',
+        'enhanced': false, // AI enhancement disabled
+        'ai_used': false, // AI enhancement disabled
         'warning': ocrResult.warning,
         'is_low_confidence': ocrResult.isLowConfidence,
       };
 
-      // API-ENHANCEMENT: Try to enhance with API data
-      print('=== API ENHANCEMENT START ===');
-      String? barcode = _extractBarcodeFromText(ocrResult.text);
+      print('=== FINAL RESULT TEXT ===');
+      print('Text length: ${result['text'].toString().length}');
+      print('Raw text length: ${result['raw_text'].toString().length}');
+      print('Image paths: ${imagePaths.length}');
+      print('First 200 chars: ${result['raw_text'].toString().substring(0, result['raw_text'].toString().length > 200 ? 200 : result['raw_text'].toString().length)}');
+      print('========================');
+      
+      print('=== FINAL PARSED DATA ===');
+      print('Parsed data keys: ${parsedData.keys}');
+      print('DATES:');
+      print('  expiryDate: "${parsedData['expiryDate']}"');
+      print('  mfgDate: "${parsedData['mfgDate']}"');
+      print('OTHER FIELDS:');
+      parsedData.forEach((key, value) {
+        if (value != null && value.toString().isNotEmpty && key != 'expiryDate' && key != 'mfgDate') {
+          print('  $key: "${value.toString().substring(0, value.toString().length > 50 ? 50 : value.toString().length)}"');
+        }
+      });
+      print('=========================');
 
-      Map<String, dynamic> apiEnhancedResult =
-          await ProductApiService.enhanceOCRWithAPI(result, barcode);
-
-      if (apiEnhancedResult['api_enhanced'] == true) {
-        print('=== API ENHANCEMENT SUCCESS ===');
-        print('API Source: ${apiEnhancedResult['api_source']}');
-        result = apiEnhancedResult;
-      } else {
-        print('=== API ENHANCEMENT FAILED - USING OCR ONLY ===');
-      }
+      // API ENHANCEMENT DISABLED - Using only OCR + AI dates
+      print('=== API ENHANCEMENT DISABLED ===');
+      print('Using OCR + AI date extraction only');
+      print('================================');
 
       LoggerService.success('MULTI_IMAGE', 'Pipeline completed successfully');
-      print('=== === ROBUST OCR + API PIPELINE COMPLETED ===');
+      print('=== ROBUST OCR + AI DATE PIPELINE COMPLETED ===');
       print('=== Method: ${ocrResult.methodDisplayName} ===');
       print('=== Confidence: ${ocrResult.confidencePercentage} ===');
       print('=== Text Length: ${ocrResult.text.length} ===');
-      print('=== API Enhanced: ${result['api_enhanced'] ?? false} ===');
+      print('=== API Enhanced: false (DISABLED) ===');
 
       return result;
     } catch (e) {
